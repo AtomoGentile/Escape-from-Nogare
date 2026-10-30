@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
         }
         web.setBackgroundColor(0xff090d18);
         web.getSettings().setJavaScriptEnabled(true); // Bundled UI only; remote navigation is blocked.
-        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.8.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
+        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.9.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);
         web.getSettings().setAllowContentAccess(false);
@@ -95,18 +95,18 @@ public class MainActivity extends Activity {
                     || u.getQuery() != null || u.getFragment() != null) throw new Exception();
             target = FirebaseRelay.firebaseHost(u.getHost()) ? FirebaseRelay.endpoint(url,publicApiKey.trim()) : url.replaceAll("/+$", "");
         } catch (Exception e) {
-            js("connectionFailed('Controlla URL HTTPS del database Firebase e chiave API pubblica, oppure l’indirizzo del tuo relay')"); return;
+            js("connectionFailed('Controlla URL HTTPS del database Firebase e chiave API pubblica, oppure l’indirizzo del tuo PC o relay')"); return;
         }
         if (!connecting.compareAndSet(false, true)) return;
         js("connecting()");
         net.execute(() -> {
             try {
-                ApiClient.health(target);
+                String kind=ApiClient.kind(target);
                 endpoint = target;
-                getPreferences(0).edit().putString("server", endpoint).apply();
-                js("connected()");
+                getPreferences(0).edit().putString("server", endpoint).putString("connection-kind",kind).apply();
+                js("connected("+JSONObject.quote(kind)+")");
             } catch (Exception e) {
-                js("connectionFailed('Connessione non riuscita. Per Firebase controlla URL, chiave API, accesso anonimo e regole; per un relay verifica /health.')");
+                js("connectionFailed('Connessione non riuscita. Per Firebase controlla URL, chiave API, accesso anonimo e regole; per PC o relay verifica /health.')");
             } finally { connecting.set(false); }
         });
     }
@@ -115,8 +115,8 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
-                    "https://github.com/AtomoGentile/Escape-from-Nogare/blob/main/docs/FIREBASE.md")));
-            } catch (ActivityNotFoundException e) { js("notice('Apri docs/FIREBASE.md nel repository GitHub Escape-from-Nogare')"); }
+                    "https://github.com/AtomoGentile/Escape-from-Nogare/blob/main/docs/SERVER.md")));
+            } catch (ActivityNotFoundException e) { js("notice('Apri docs/SERVER.md nel repository GitHub Escape-from-Nogare')"); }
         });
     }
 
@@ -142,9 +142,9 @@ public class MainActivity extends Activity {
     private void startPhoneRequest(){
         if(!visible||pendingPhoneRequest==null)return;
         try {
-            startForegroundService(new Intent(this,TrackingService.class).putExtra("endpoint",endpoint).putExtra("phoneRequest",pendingPhoneRequest));
+            startForegroundService(new Intent(this,TrackingService.class).putExtra("endpoint",endpoint).putExtra("phoneRequest",pendingPhoneRequest).putExtra("connectionKind",getPreferences(0).getString("connection-kind","")));
             pendingPhoneRequest=null;
-        }catch(Exception e){pendingPhoneRequest=null;js("setBusy(false);connectionFailed('Impossibile avviare il telefono organizzatore. Controlla i permessi GPS.')");}
+        }catch(Exception e){pendingPhoneRequest=null;js("setBusy(false);connectionFailed('Impossibile avviare la sessione. Controlla i permessi GPS.')");}
     }
     @JavascriptInterface public void startTracking(String ignored) { /* Native session already owns foreground GPS. */ }
     @JavascriptInterface public void pasteInvite(){

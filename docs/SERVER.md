@@ -1,6 +1,6 @@
-# Collegare i telefoni via Internet · v0.7
+# Collegare i telefoni via Internet · v0.9
 
-**Il telefono organizzatore gestisce la partita.** Serve comunque un piccolo servizio HTTPS per mettere in contatto telefoni dietro CGNAT e inoltrare messaggi cifrati quando il collegamento diretto non riesce. Non è un server delle posizioni: non riceve la chiave dell’invito e non esegue regole del gioco.
+**Puoi scegliere un server completo sul PC oppure il telefono organizzatore con un relay cifrato.** In modalità telefono: Serve comunque un piccolo servizio HTTPS per mettere in contatto telefoni dietro CGNAT e inoltrare messaggi cifrati quando il collegamento diretto non riesce. Non è un server delle posizioni: non riceve la chiave dell’invito e non esegue regole del gioco.
 
 ## Con un account Google, senza PC
 
@@ -8,7 +8,7 @@ Usa la [guida Firebase](FIREBASE.md): un progetto Spark con Auth anonimo e Realt
 
 ## Sul proprio PC Windows 11, senza account di hosting
 
-Segui la [guida Windows a casa](WINDOWS-HOME.md): Node esegue il relay e Caddy pubblica HTTPS. Servono IP WAN pubblico e TCP 80/443 inoltrate al PC; DNS e certificato vengono ottenuti automaticamente senza account di hosting. Il PC deve restare acceso.
+Segui la [guida Windows a casa](WINDOWS-HOME.md): Lo script `Start-HomeGame.ps1` avvia il server completo sul PC e Caddy pubblica HTTPS. Il PC riceve le posizioni e gestisce le regole; la chiave API Firebase resta vuota. Il controllo `/health` risponde `nogar-pc`, protocollo 3. Puoi ancora scegliere `Start-HomeRelay.ps1` per il solo relay cifrato. Servono IP WAN pubblico e TCP 80/443 inoltrate al PC; DNS e certificato vengono ottenuti automaticamente senza account di hosting. Il PC deve restare acceso.
 
 ## In alternativa: ottenere l’indirizzo su Render
 
@@ -37,7 +37,7 @@ Il codice a sei cifre rimane l’identificativo della lobby. Da solo non permett
 
 Render assegna `PORT`; il programma la legge. Il certificato HTTPS viene fornito dall’hosting. Non servono chiavi Maps, chiavi di cifratura da inserire sul server o credenziali TURN. Una sola istanza: le caselle sono in memoria.
 
-**Deploy precedente:** se Start Command era `node server.mjs`, sostituiscilo con `node relay.mjs`. L’app nuova rifiuta il vecchio server, che vedeva le posizioni in chiaro dopo la terminazione TLS.
+**Scelta del servizio:** `node relay.mjs` inoltra solo messaggi cifrati; `node server.mjs` gestisce tutta la partita e riceve le coordinate dopo la terminazione HTTPS. Usa il secondo sul tuo PC fidato. La v0.9 riconosce entrambi e indica la modalità.
 
 ## Costi e dati
 

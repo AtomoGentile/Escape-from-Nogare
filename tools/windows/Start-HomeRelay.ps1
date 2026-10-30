@@ -4,7 +4,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PublicIp,
     [ValidateRange(1024, 65535)]
-    [int]$LocalPort = 8080
+    [int]$LocalPort = 8080,
+    [ValidateSet("Relay", "Game")]
+    [string]$Mode = "Relay"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,8 +33,11 @@ $relayNodeVersion = & $relayNode.Source --version
 if ([int](($relayNodeVersion -replace '^v', '').Split('.')[0]) -lt 22) { throw 'Serve Node.js 22 o successivo.' }
 
 $relayRepo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$relayEntry = Join-Path $relayRepo 'server\relay.mjs'
-if (-not (Test-Path $relayEntry)) { throw 'Manca server\relay.mjs. Estrai tutto il repository prima di avviare lo script.' }
+$relayFile = if ($Mode -eq 'Game') { 'server\server.mjs' } else { 'server\relay.mjs' }
+$relayService = if ($Mode -eq 'Game') { 'nogar-pc' } else { 'nogar-relay' }
+$relayProtocol = if ($Mode -eq 'Game') { 3 } else { 2 }
+$relayEntry = Join-Path $relayRepo $relayFile
+if (-not (Test-Path $relayEntry)) { throw "Manca $relayFile. Estrai tutto il repository prima di avviare lo script." }
 foreach ($relayPort in @(80, 443, $LocalPort)) {
     if (Get-NetTCPConnection -LocalPort $relayPort -State Listen -ErrorAction SilentlyContinue) {
         throw "Porta $relayPort gia occupata. Chiudi il servizio che la usa oppure scegli un altro PC; lo script non termina processi esistenti."
@@ -41,7 +46,8 @@ foreach ($relayPort in @(80, 443, $LocalPort)) {
 
 $relayDomain = $relayAddress.ToString().Replace('.', '-') + '.sslip.io'
 $relayUrl = 'https://' + $relayDomain
-$relayState = Join-Path $env:LOCALAPPDATA 'NogarRelay'
+$relayStateName = if ($Mode -eq 'Game') { 'NogarGameServer' } else { 'NogarRelay' }
+$relayState = Join-Path $env:LOCALAPPDATA $relayStateName
 New-Item -ItemType Directory -Path $relayState -Force | Out-Null
 $relayConfigPath = Join-Path $relayState 'Caddyfile.generated'
 if (Test-Path -LiteralPath $relayConfigPath) {
@@ -75,7 +81,7 @@ try {
         if ($relayNodeProcess.HasExited) { throw "Node si e fermato. Leggi $relayState\node-error.log" }
         try {
             $relayHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$LocalPort/health" -TimeoutSec 2
-            if ($relayHealth.ok -and $relayHealth.service -eq 'nogar-relay' -and $relayHealth.protocol -eq 2) { $relayReady = $true; break }
+            if ($relayHealth.ok -and $relayHealth.service -eq $relayService -and $relayHealth.protocol -eq $relayProtocol) { $relayReady = $true; break }
         } catch { }
         Start-Sleep -Milliseconds 300
     }
@@ -83,7 +89,7 @@ try {
 
     $relayCaddyProcess = Start-Process -FilePath $relayCaddy.Source -ArgumentList @('run', '--config', ('"' + $relayConfigPath + '"'), '--adapter', 'caddyfile') -WorkingDirectory $relayRepo -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $relayState 'caddy.log') -RedirectStandardError (Join-Path $relayState 'caddy-error.log')
     Write-Host ''
-    Write-Host 'Relay locale pronto. Caddy sta attivando HTTPS.'
+    Write-Host "$relayService locale pronto. Caddy sta attivando HTTPS."
     Write-Host "URL da verificare con i DATI MOBILI: $relayUrl/health"
     Write-Host "URL da inserire nell app dopo la verifica: $relayUrl"
     Write-Host 'Apri sul router TCP 80 e 443 verso questo PC e abilita le regole firewall indicate nella guida.'

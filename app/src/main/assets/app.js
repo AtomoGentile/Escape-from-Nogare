@@ -32,7 +32,7 @@ function saveProfile() {
 }
 function connecting() { $('connect').disabled = true; $('connectLabel').textContent = 'VERIFICA SERVER…'; }
 function connectionFailed(message) { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; notice(message); }
-function connected() { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; show('home'); $('message').classList.add('hidden'); if(val('code').indexOf('nogar://join#')===0)mode('join'); Android.requestGps(); }
+function connected(kind) { $('serviceInfo').textContent = kind === 'pc' ? 'Server PC: il computer riceve le posizioni via HTTPS e gestisce la partita.' : 'Partita sul telefono organizzatore · messaggi cifrati.'; $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; show('home'); $('message').classList.add('hidden'); if(val('code').indexOf('nogar://join#')===0)mode('join'); Android.requestGps(); }
 function prefillInvite(invite, relay) {
   $('server').value=relay; $('firebaseKey').value='';
   try { const url=new URL(relay); if((url.hostname.endsWith('.firebaseio.com')||url.hostname.endsWith('.firebasedatabase.app'))&&url.pathname.indexOf('/nogar-client/')===0){$('server').value=url.origin; $('firebaseKey').value=url.pathname.slice('/nogar-client/'.length);} } catch(ignored) {}
@@ -185,7 +185,7 @@ function renderPlayers() {
     const main = document.createElement('div'); main.className = 'player-main';
     const mark = document.createElement('div'); mark.className = 'player-mark' + (p.role === 'hunter' ? ' hunter' : ''); mark.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' + (p.role === 'hunter' ? 'raven' : 'ghost') + '"/></svg>';
     const text = document.createElement('div'); const name = document.createElement('div'); name.className = 'player-name'; name.textContent = p.name;
-    const badge = document.createElement('small'); badge.textContent = (p.self ? 'TU ' : '') + (p.host ? 'HOST' : ''); name.append(badge);
+    const badge = document.createElement('small'); badge.textContent = (p.self ? 'TU ' : '') + (p.host ? (state.authority === 'pc' ? 'COORD' : 'HOST') : ''); name.append(badge);
     const sub = document.createElement('div'); sub.className = 'player-sub' + (p.role === 'hunter' ? ' hunter' : ''); sub.textContent = (p.role === 'hunter' ? 'CACCIATORE' : 'PREDA') + (p.online ? '' : ' · OFFLINE');
     text.append(name, sub); main.append(mark, text);
     const position = document.createElement('div'); position.className = 'player-age';
@@ -225,7 +225,7 @@ function refreshClock() {
   $('nextPing').textContent = !state.started || state.ended ? '—' : Math.max(0, Math.ceil(state.nextPingIn - elapsed)) + ' s';
   const stale = elapsed > 15;
   $('connection').classList.toggle('stale', stale);
-  $('connectionText').textContent = state.ended ? 'Partita conclusa · nessuna posizione condivisa' : stale ? 'Connessione in ritardo · ping non aggiornati' : state.transport === 'host' ? 'Organizzatore sul telefono · messaggi cifrati' : state.transport === 'direct' ? 'Collegamento diretto cifrato · GPS attivo' : 'Inoltro cifrato · GPS in background attivo';
+  $('connectionText').textContent = state.ended ? 'Partita conclusa · nessuna posizione condivisa' : stale ? 'Connessione in ritardo · ping non aggiornati' : state.transport === 'pc' ? 'Server PC · posizioni via HTTPS · GPS attivo' : state.transport === 'host' ? 'Organizzatore sul telefono · messaggi cifrati' : state.transport === 'direct' ? 'Collegamento diretto cifrato · GPS attivo' : 'Inoltro cifrato · GPS in background attivo';
   const gpsFresh = fix && performance.now() - gpsAt < 15000;
   $('gps').textContent = state.ended ? 'GPS FERMO' : gpsFresh ? 'GPS ±' + Math.round(fix.accuracy) + ' M' : 'GPS IN ATTESA';
   if (own) own.setStyle({ opacity: gpsFresh ? 1 : .4, fillOpacity: gpsFresh ? 1 : .3 });

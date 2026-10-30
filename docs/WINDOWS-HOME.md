@@ -1,8 +1,8 @@
 # Windows 11: servizio a casa senza account di hosting
 
-Il telefono resta l'organizzatore della partita. Il PC Windows 11 ospita soltanto `nogar-relay`, che collega i partecipanti e inoltra messaggi cifrati quando il diretto non riesce.
+Dalla v0.9 il PC Windows 11 può gestire tutta la partita: lobby, squadre, ping e zona. I telefoni inviano le posizioni al tuo PC tramite HTTPS. Il PC è l'autorità fidata e vede le coordinate; non vengono inoltrate a Firebase o STUN in questa modalità. Le tessere mappa restano esterne. Il telefono creatore ha i comandi di coordinamento, ma non esegue il server.
 
-Non devi creare account su Render o acquistare un dominio. Usiamo **sslip.io** per associare automaticamente un nome al tuo IPv4 pubblico e **Caddy** per ottenere un certificato HTTPS gratuito. Sono comunque servizi esterni DNS/certificazione: non ricevono la chiave dell'invito o le coordinate dei giocatori. STUN e tessere mappa restano quelli descritti nel README.
+Non devi creare account su Render o acquistare un dominio. Usiamo **sslip.io** per associare automaticamente un nome al tuo IPv4 pubblico e **Caddy** per ottenere un certificato HTTPS gratuito. Sono comunque servizi esterni DNS/certificazione: non ricevono la chiave dell'invito o le coordinate dei giocatori. Le tessere mappa restano quelle descritte nel README.
 
 **Requisiti:** IPv4 WAN pubblico, porte TCP 80 e 443 raggiungibili da Internet, PC acceso e connesso per tutta la partita. Lo screenshot del router mostra un indirizzo pubblico, ma la raggiungibilita delle porte va ancora provata. Non abbiamo configurato il tuo PC o router da remoto.
 
@@ -56,7 +56,7 @@ In una normale finestra PowerShell, dalla cartella del repository:
 
 ```powershell
 Unblock-File .\tools\windows\*.ps1
-powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\tools\windows\Start-HomeRelay.ps1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\tools\windows\Start-HomeGame.ps1
 ```
 
 Quando chiede **PublicIp**, inserisci l'IPv4 WAN attuale mostrato dal router. Non inserire l'IP locale del PC e non aggiungere `https://`.
@@ -66,7 +66,7 @@ Lo script:
 - Controlla Node, Caddy e le porte locali, senza terminare servizi gia esistenti.
 - Avvia Node soltanto su `127.0.0.1:8080`, verifica `/health` e avvia Caddy su 80/443.
 - Mostra l'indirizzo HTTPS da provare e, dopo la verifica, da inserire nell'app.
-- Salva la configurazione generata (con backup delle versioni precedenti) e i log in `%LOCALAPPDATA%\NogarRelay`, fuori dal repository. Il tuo indirizzo non viene scritto nei file da pubblicare su GitHub.
+- Salva la configurazione generata (con backup delle versioni precedenti) e i log in `%LOCALAPPDATA%\NogarGameServer`, fuori dal repository. Il tuo indirizzo non viene scritto nei file da pubblicare su GitHub.
 
 Il nome generato ha la forma `<IP-con-trattini>.sslip.io`. **Non esiste un indirizzo gia attivo nel progetto.** Caddy deve poter ricevere le verifiche pubbliche del certificato; il primo avvio puo richiedere tempo. DNS e autorita di certificazione possono applicare limiti: non richiedere ripetutamente certificati per configurazioni con porte chiuse.
 
@@ -79,16 +79,16 @@ Sul telefono **disattiva il Wi-Fi** e usa i dati mobili. Apri l'URL `/health` st
 Deve rispondere, senza avvisi del certificato, con:
 
 ```json
-{"ok":true,"service":"nogar-relay","protocol":2}
+{"ok":true,"service":"nogar-pc","protocol":3}
 ```
 
-Solo dopo questo controllo inserisci nell'app l'indirizzo di base, senza `/health`. Crea la lobby dal telefono e condividi l'invito completo. Il PC non ha bisogno di ricevere quell'invito o la sua chiave.
+Solo dopo questo controllo inserisci nell'app l'indirizzo di base, senza `/health`. Crea la lobby dal telefono e condividi l'invito completo. Il codice da solo non permette di entrare: il PC verifica una prova derivata dall'invito completo. Lascia vuota la chiave API Firebase. Nell'app compare «Server PC».
 
 La prova dalla stessa rete Wi-Fi puo fallire per mancanza di NAT loopback anche se il servizio e raggiungibile da fuori: usa i dati mobili per il controllo.
 
 ## Se non funziona
 
-- **Il controllo locale non parte:** leggi `%LOCALAPPDATA%\NogarRelay\node-error.log`; controlla che Node sia almeno 22 e che la cartella contenga `server\relay.mjs`.
+- **Il controllo locale non parte:** leggi `%LOCALAPPDATA%\NogarGameServer\node-error.log`; controlla che Node sia almeno 22 e che la cartella contenga `server\server.mjs`.
 - **Caddy termina o non ottiene il certificato:** leggi `caddy-error.log` nella stessa cartella. Controlla firewall, NAT, IP WAN attuale e porte occupate. Non ignorare gli errori TLS nell'app.
 - **Il dominio non risolve:** sslip.io puo essere filtrato dal DNS della rete. Puoi usare un dominio tuo o una soluzione DNS differente, ma serve cambiare la configurazione; lo script non cambia i DNS del PC/router.
 - **Timeout da rete mobile:** porte non inoltrate, indirizzo locale del PC cambiato, firewall oppure filtro dell'operatore. Avere un IPv4 pubblico non prova da solo l'apertura delle porte.
@@ -107,3 +107,9 @@ Rimuovi separatamente le due regole NAT dal router se non vuoi piu esporre il se
 ## Verifiche disponibili
 
 Gli script vengono controllati sintatticamente e la configurazione Caddy viene verificata; l'avvio Windows, il firewall del tuo PC e la connessione WINDTRE non sono stati collaudati da questo ambiente Linux. Il controllo su rete mobile del punto 5 e necessario prima di considerare il servizio pronto.
+
+## Continuità della partita e alternativa relay
+
+Il PC deve restare acceso. Le lobby sono solo in RAM: un riavvio le perde. Il creatore può uscire dopo l'avvio: i comandi passano al primo giocatore rimasto e la partita continua se rimangono entrambe le squadre. La disconnessione temporanea non trasferisce automaticamente il coordinamento. Non si può rientrare dopo l'avvio con una nuova sessione.
+
+Per usare invece il PC come solo relay cifrato, avvia `Start-HomeRelay.ps1` con gli stessi parametri. Il suo health è `nogar-relay`, protocollo 2, e i log sono in `%LOCALAPPDATA%\NogarRelay`. In quel caso il telefono organizzatore deve restare connesso: è lui a gestire la partita e decifrare le posizioni. Non avviare contemporaneamente i due script sulle stesse porte.

@@ -5,8 +5,9 @@ import java.net.*;
 import org.json.*;
 
 final class ApiClient {
-    static void health(String endpoint) throws Exception {
-        if(FirebaseRelay.isEndpoint(endpoint)){FirebaseRelay.client(endpoint).health();return;}
+    static void health(String endpoint)throws Exception{kind(endpoint);}
+    static String kind(String endpoint) throws Exception {
+        if(FirebaseRelay.isEndpoint(endpoint)){FirebaseRelay.client(endpoint).health();return "firebase";}
         HttpURLConnection c = (HttpURLConnection) new URL(endpoint + "/health").openConnection();
         try {
             c.setInstanceFollowRedirects(false);
@@ -20,8 +21,10 @@ final class ApiClient {
                     if (buffer.size() > 4096) throw new IOException("Invalid health response");
                 }
                 JSONObject result = new JSONObject(buffer.toString("UTF-8"));
-                if (!result.optBoolean("ok", false) || !"nogar-relay".equals(result.optString("service")))
-                    throw new IOException("Not a Nogar server");
+                if(!result.optBoolean("ok",false))throw new IOException("Service not ready");
+                if("nogar-relay".equals(result.optString("service"))&&result.optInt("protocol")==2)return "relay";
+                if("nogar-pc".equals(result.optString("service"))&&result.optInt("protocol")==3)return "pc";
+                throw new IOException("Unsupported Nogar service");
             }
         } finally { c.disconnect(); }
     }

@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 export const presets = {
@@ -7,6 +7,7 @@ export const presets = {
   classic: { label: 'CLASSIC · 20 min', minutes: 20, diameter: 1200, ping: 30, shrink: 0.4, minRadius: 25 },
   explorer: { label: 'EXPLORER · 30 min', minutes: 30, diameter: 2000, ping: 45, shrink: 0.5, minRadius: 25 }
 };
+const sameProof=(a,b)=>typeof a==='string'&&typeof b==='string'&&/^[a-f0-9]{64}$/.test(a)&&a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 const secret = () => randomBytes(24).toString('hex');
 const numeric = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
 const fail = (status, message, errorCode = 'INVALID_REQUEST') => {
@@ -29,7 +30,7 @@ export function createServer({ clock = Date.now } = {}) {
   }
   function end(room, reason) {
     if (room.ended) return;
-    room.ended = { at: clock(), reason };
+    room.ended = { at: reason==='timeout'?room.started+room.config.minutes*60000:clock(), reason };
     // No location history or retained coordinates once the game is over.
     for (const p of room.players) p.location = null;
   }
@@ -39,7 +40,7 @@ export function createServer({ clock = Date.now } = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     try {
       cleanup();
-      if (req.method === 'GET' && req.url === '/health') { res.end('{"ok":true,"service":"nogar","protocol":1}'); return; }
+      if (req.method === 'GET' && req.url === '/health') { res.end('{"ok":true,"service":"nogar-pc","protocol":3}'); return; }
       if (req.method !== 'POST' || req.url !== '/api') fail(404, 'Endpoint inesistente');
       // Coarse abuse limit, not the per-player budget. Reverse proxies may share one IP.
       limit('ip:' + req.socket.remoteAddress, 10000);
@@ -59,6 +60,7 @@ export function createServer({ clock = Date.now } = {}) {
           fail(400, 'Nome richiesto (massimo 24 caratteri)');
         if (!['hunter', 'prey'].includes(b.role)) fail(400, 'Squadra non valida');
         if (b.action === 'create') {
+          if(typeof b.joinProof!=='string'||! /^[a-f0-9]{64}$/.test(b.joinProof))fail(400,'Serve un invito privato valido');
           const c = b.config;
           if (!c || !numeric(c.minutes, 2, 120) || !numeric(c.diameter, 100, 10000)
               || !numeric(c.ping, 5, 300) || !numeric(c.shrink, 0, 5)) fail(400, 'Impostazioni non valide');
@@ -68,12 +70,13 @@ export function createServer({ clock = Date.now } = {}) {
           let code;
           do { code = String(randomInt(100000, 1000000)); } while (rooms.has(code));
           room = { code, config: { minutes: c.minutes, diameter: c.diameter, ping: c.ping, shrink: c.shrink, minRadius },
-            players: [], host: null, started: null, ended: null, center: null, updated: now };
+            joinProof: b.joinProof, players: [], host: null, started: null, ended: null, center: null, updated: now };
           rooms.set(code, room);
         } else {
           if (typeof b.code !== 'string' || !/^\d{6}$/.test(b.code)) fail(400, 'Il codice deve avere 6 cifre');
           room = rooms.get(b.code);
           if (!room) fail(404, 'Lobby non trovata', 'ROOM_GONE');
+          if(!sameProof(b.joinProof,room.joinProof))fail(403,'Invito non valido','INVITE_INVALID');
           if (room.started || room.ended) fail(409, 'Partita già iniziata o terminata');
         }
         if (room.players.length >= 50) fail(409, 'Lobby piena (50 giocatori)');
@@ -132,7 +135,7 @@ export function createServer({ clock = Date.now } = {}) {
       const nextPingIn = room.started && !room.ended
         ? Math.max(0, room.config.ping - (now - (player.lastPing ?? room.started)) / 1000) : 0;
       res.end(JSON.stringify({ code: room.code, token: player.id, host: room.host === player.id,
-        config: room.config, started: room.started, ended: room.ended, center: room.center, serverTime: now,
+        authority: 'pc', transport: 'pc', config: room.config, started: room.started, ended: room.ended, center: room.center, serverTime: now,
         nextPingIn, remaining: room.ended ? 0 : Math.max(0, room.config.minutes * 60 - elapsed),
         radius: Math.max(room.config.minRadius, room.config.diameter / 2 - elapsed * room.config.shrink),
         players: room.players.map(p => ({ name: p.name, role: p.role, self: p === player,

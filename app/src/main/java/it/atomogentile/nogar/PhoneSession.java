@@ -11,7 +11,7 @@ import org.json.*;
 import org.webrtc.*;
 
 /** Star topology: authoritative phone + authenticated encrypted peer messages. */
-final class PhoneSession implements AutoCloseable {
+final class PhoneSession implements GameSession, AutoCloseable {
     private final String endpoint,code,peer,token,invitation;
     private final PeerCrypto crypto;
     private final PhoneGame game;
@@ -57,9 +57,10 @@ final class PhoneSession implements AutoCloseable {
         factory=PeerConnectionFactory.builder().createPeerConnectionFactory();
         io.scheduleWithFixedDelay(this::exchange,0,1000,TimeUnit.MILLISECONDS);
     }
-    String invitation(){return invitation;}
-    String code(){return code;}
-    JSONObject request(JSONObject body) throws Exception {
+    public String invitation(){return invitation;}
+    public String code(){return code;}
+    @Override public boolean ownsAuthority(){return game!=null;}
+    public JSONObject request(JSONObject body) throws Exception {
         if(closed)throw new IllegalStateException("Sessione chiusa");
         if(fatal!=null)return new JSONObject().put("error",fatal).put("errorCode","ROOM_GONE");
         JSONObject result;
@@ -181,7 +182,7 @@ final class PhoneSession implements AutoCloseable {
     private void disposePeer(String id){DataChannel channel=channels.remove(id);if(channel!=null){channel.unregisterObserver();channel.close();channel.dispose();}PeerConnection pc=connections.remove(id);if(pc!=null){pc.close();pc.dispose();}candidates.remove(id);remoteReady.remove(id);}
     private void dispatch(Runnable task){try{rtc.execute(task);}catch(RejectedExecutionException ignored){}}
     @Override public void close(){finish();}
-    void finish(){
+    public void finish(){
         if(closed)return;
         try{if(joined)request(new JSONObject().put("action","leave"));}catch(Exception ignored){}
         closed=true;io.shutdown();for(CompletableFuture<JSONObject> f:pending.values())f.completeExceptionally(new IllegalStateException("Sessione chiusa"));

@@ -1,6 +1,6 @@
-# NOGAR // HUNT · Android 9+ · v0.8
+# NOGAR // HUNT · Android 9+ · v0.9
 
-Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.7 il telefono organizzatore gestisce la partita.** Il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
+Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.9 puoi scegliere: server completo sul tuo PC oppure partita sul telefono organizzatore con Firebase/relay cifrato.** In modalità telefono il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
 
 ## Collegamento con Google, senza PC
 
@@ -10,15 +10,15 @@ Il telefono continua a gestire le regole e le posizioni rimangono cifrate. L'app
 
 ## Giocare
 
-1. Collega nell’app Firebase come sopra oppure un servizio HTTPS `nogar-relay`. [Guida per ottenere l’indirizzo](docs/SERVER.md). Tutti usano la stessa versione dell’app.
-2. L’organizzatore sceglie nickname, squadra e regole, poi **Crea lobby**. Il suo telefono deve rimanere acceso e connesso; GPS e connessioni sono nel servizio Android in background con notifica persistente.
+1. Collega nell’app Firebase come sopra oppure il tuo server PC HTTPS `nogar-pc` o un servizio HTTPS `nogar-relay`. [Guida per ottenere l’indirizzo](docs/SERVER.md). Tutti usano la stessa versione dell’app.
+2. L’organizzatore sceglie nickname, squadra e regole, poi **Crea lobby**. In modalità telefono deve rimanere acceso e connesso; con server PC deve restare acceso il computer; GPS e connessioni sono nel servizio Android in background con notifica persistente.
 3. Tocca il pulsante di copia accanto al codice: copia l’**invito privato completo** `nogar://join#…`. Condividilo solo con i partecipanti. Il codice a sei cifre identifica la lobby, ma non basta per entrare perché non contiene la chiave crittografica.
 4. Gli altri aprono l’invito con Nogar oppure lo copiano e toccano **Ho un invito · Incolla**. L’app propone il servizio dell’invito senza contattarlo automaticamente. Premono Connetti, scelgono nickname e squadra ed entrano.
 5. Servono una preda e un cacciatore connessi. L’organizzatore avvia con un GPS recente e preciso entro 100 m: questo punto diventa il centro fisso del campo.
 6. Ognuno vede il proprio GPS continuo e l’ultimo ping degli altri. Entrambe le squadre vengono rivelate. Fuori dalla lobby, il client invia una posizione all’organizzatore solo quando è dovuto un ping, anziché spedire continuamente gli spostamenti intermedi.
 7. Il creatore può terminare la partita. Alla scadenza o all’uscita di una squadra il motore chiude la partita e cancella le posizioni dei giocatori. Le catture si concordano di persona, senza rilevamento contatto automatico.
 
-Il telefono organizzatore non viene sostituito automaticamente. Se esce, viene spento o il processo viene terminato, la partita si interrompe. Il relay cancella la casella dopo due minuti senza il telefono organizzatore o dopo tre ore; un riavvio del relay può interrompere anche la sessione corrente. I partecipanti non possono rientrare dopo l’avvio se il loro processo è stato perso.
+In modalità telefono, il telefono organizzatore non viene sostituito automaticamente. Se esce, viene spento o il processo viene terminato, la partita si interrompe. Il relay cancella la casella dopo due minuti senza il telefono organizzatore o dopo tre ore; un riavvio del relay può interrompere anche la sessione corrente. I partecipanti non possono rientrare dopo l’avvio se il loro processo è stato perso.
 
 ## Regole e preset
 
@@ -28,7 +28,7 @@ Il telefono organizzatore non viene sostituito automaticamente. Se esce, viene s
 | Classic | 20 min | 1200 m | 30 s | 0,4 m/s | 25 m |
 | Explorer | 30 min | 2000 m | 45 s | 0,5 m/s | 25 m |
 
-Tutti i parametri sono personalizzabili. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il server sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. Usare solo aree autorizzate e percorsi sicuri.
+Tutti i parametri sono personalizzabili. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il motore sul PC o sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. Usare solo aree autorizzate e percorsi sicuri.
 
 ## Cosa passa dai servizi esterni
 
@@ -56,7 +56,7 @@ HOST=0.0.0.0 PORT=8080 npm start
 
 Per gli utenti finali esporre tramite HTTPS con certificato valido. `GET /health` deve restituire `{"ok":true,"service":"nogar-relay","protocol":2}`. Il file `render.yaml` configura questo servizio sul proprio account Render. La pubblicazione non è stata effettuata dall’agente; non esiste un URL pubblico preconfigurato. Hosting e rete mobile possono imporre quote di traffico: non è garantito un uso gratuito illimitato. Il piano gratuito può dormire o riavviarsi: la disponibilità continua non è garantita.
 
-Il precedente `server/server.mjs` rimane come riferimento/test della vecchia architettura e si avvia solo con `npm run start:legacy`. **L’app v0.7 rifiuta questo endpoint**, perché elaborerebbe le posizioni nel cloud. Se avevi già un deploy, cambia Start Command in `node relay.mjs` e ridistribuisci.
+`server/server.mjs` ora è il server completo `nogar-pc`, protocollo 3: avvio `cd server && npm run start:game` (localhost per impostazione predefinita; esporre solo dietro HTTPS). L'app riconosce il servizio e mostra che il PC riceve le posizioni. L'invito privato è obbligatorio: il codice da solo non basta. Nessuna connessione WebRTC/STUN o Firebase in questa modalità. Le posizioni vengono elaborate in RAM sul PC e cancellate a fine partita; un riavvio perde le lobby. Il creatore può uscire e trasferire i comandi al primo rimasto; la partita continua se restano entrambe le squadre. Non c'è trasferimento automatico per una disconnessione temporanea.
 
 ## Sviluppo e build
 
@@ -78,8 +78,9 @@ Actions esegue test Node, build APK, test JVM dell’autorità/cifratura/relay r
 L’integrazione Firebase include test delle regole e del client REST Java con Auth/Database Emulator in Actions. La rete locale di questo ambiente blocca il download ufficiale dell’emulatore: i test vengono eseguiti sul runner GitHub e il controllo fallisce anche se la prova REST Java viene saltata. La run iniziale [41071236119](https://github.com/AtomoGentile/Escape-from-Nogare/actions/runs/41071236119) ha superato build, emulatori e lint. Non e stato configurato alcun progetto Firebase reale.
 
 
-- Test Node del precedente motore, relay opaco, validazione, autorizzazioni e DOM dell’interfaccia.
+- Test Node del motore PC, relay opaco, validazione, autorizzazioni e DOM dell’interfaccia.
 - Test JVM di regole sul telefono, raggio minimo, ping, ruoli, uscita, AES-GCM, manomissione, mittente/lobby sbagliati, inviti e replay.
+- Integrazione JVM con server PC reale: invito privato, ruoli, raggio minimo, prosecuzione senza creatore e cancellazione delle coordinate.
 - Integrazione JVM con **relay Node reale**: richiesta cifrata, elaborazione sull’autorità Java e risposta cifrata. Non usa WebRTC nativo: verifica l’alternativa di inoltro e il formato crittografico, non la negoziazione ICE.
 - Build e lint Android; nessun telefono/emulatore disponibile. **La negoziazione WebRTC, le reti mobili reali e il background su Android 9/recente restano da collaudare su due dispositivi.**
 

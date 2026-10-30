@@ -24,7 +24,7 @@ public class TrackingService extends Service implements LocationListener {
     private volatile boolean completed;
     private boolean booting;
     private String endpoint, code = "…";
-    private volatile PhoneSession session;
+    private volatile GameSession session;
     private long nextPingAt;
     private LocationManager gps;
     private PowerManager.WakeLock wakeLock;
@@ -86,7 +86,7 @@ public class TrackingService extends Service implements LocationListener {
             worker.execute(() -> {
                 try {
                     JSONObject creation = new JSONObject(phoneRequest);
-                    session = PhoneSession.open(this, endpoint, creation);
+                    session = GameSession.open(this, endpoint, intent.getStringExtra("connectionKind"), creation);
                     if(stopped){session.finish();return;}
                     code = session.code();
                     JSONObject first = session.request(creation.getString("action").equals("create")
@@ -111,9 +111,9 @@ public class TrackingService extends Service implements LocationListener {
 
     private JSONObject request(String action) throws JSONException {return new JSONObject().put("action",action);}
     JSONObject command(JSONObject body) throws Exception {
-        PhoneSession active=session;if(active==null)throw new IllegalStateException("Connessione in corso");return active.request(body);
+        GameSession active=session;if(active==null)throw new IllegalStateException("Connessione in corso");return active.request(body);
     }
-    String invitation(){PhoneSession active=session;return active==null?null:active.invitation();}
+    String invitation(){GameSession active=session;return active==null?null:active.invitation();}
     private void publish(JSONObject result){
         if(stopped)return;
         snapshot=result.toString();nextPingAt=SystemClock.elapsedRealtime()+(long)(result.optDouble("nextPingIn",0)*1000);
@@ -146,7 +146,7 @@ public class TrackingService extends Service implements LocationListener {
                 main.post(() -> {
                     if(completed||stopped)return;
                     completed=true;gps.removeUpdates(this);fix=null;
-                    if(result.optBoolean("host")){
+                    if(session!=null&&session.ownsAuthority()){
                         getSystemService(NotificationManager.class).notify(7,notification());
                         // Leave a short grace period for remote peers to fetch their final result.
                         main.postDelayed(()->finishTracking(false),12000);
@@ -162,7 +162,7 @@ public class TrackingService extends Service implements LocationListener {
         if (stopped) return;
         stopped = true;
         if (loop != null) loop.cancel(false);
-        try { worker.execute(() -> { PhoneSession active=session;if(active!=null)active.finish(); }); }
+        try { worker.execute(() -> { GameSession active=session;if(active!=null)active.finish(); }); }
         catch (RejectedExecutionException ignored) {}
         if (!completed) {
             snapshot = null;
@@ -193,7 +193,7 @@ public class TrackingService extends Service implements LocationListener {
         main.removeCallbacksAndMessages(null);
         gps.removeUpdates(this);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        try { worker.execute(() -> { PhoneSession active=session;if(active!=null)active.finish(); }); } catch(RejectedExecutionException ignored){}
+        try { worker.execute(() -> { GameSession active=session;if(active!=null)active.finish(); }); } catch(RejectedExecutionException ignored){}
         worker.shutdown();
         if (current == this) current = null;
         if (!completed) snapshot = null;

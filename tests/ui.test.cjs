@@ -143,3 +143,13 @@ test('invito Firebase precompila URL e chiave API pubblica senza avviare traffic
   assert.equal(el('firebaseKey').value,key);
   assert.equal(calls.length,0);
 });
+
+test('server PC: privacy HTTPS, coordinatore e nessuna indicazione di cifratura end-to-end', t => {
+  const {w,state,el}=page(t); w.connected('pc');
+  assert.match(el('serviceInfo').textContent,/computer riceve le posizioni via HTTPS/);
+  assert.equal(el('serviceInfo').closest('section').classList.contains('hidden'),false);
+  state.authority='pc';state.transport='pc';w.eval('accepting=true');w.receive(state);
+  assert.match(el('players').textContent,/COORD/);
+  assert.match(el('connectionText').textContent,/Server PC/);
+  assert.doesNotMatch(el('connectionText').textContent,/cifrat/);
+});
