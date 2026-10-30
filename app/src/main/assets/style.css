@@ -33,3 +33,5 @@ button>.icon{display:block;flex:0 0 20px;width:20px;height:20px}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .map-button>.icon{flex:0 0 20px;width:20px;height:20px}
 .settings-button>.icon{flex:none;width:22px;height:22px}
+
+.invite-input{display:block;width:100%;resize:vertical;min-height:88px;padding:13px;background:#0b111b;border:1px solid #52657d;border-radius:9px;color:#e8f1ff;font:12px/1.6 monospace;overflow-wrap:anywhere;word-break:break-all}.invite-input:focus{outline:2px solid var(--lime)}

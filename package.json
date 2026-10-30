@@ -1,1 +1,1 @@
-{"name":"nogar-validation","private":true,"version":"0.3.0","scripts":{"test":"node --test server/server.test.mjs tests/ui.test.cjs"},"devDependencies":{"jsdom":"26.1.0"},"engines":{"node":">=22"}}
+{"name":"nogar-validation","private":true,"version":"0.3.0","scripts":{"test":"node --test server/server.test.mjs server/relay.test.mjs tests/ui.test.cjs"},"devDependencies":{"jsdom":"26.1.0"},"engines":{"node":">=22"}}

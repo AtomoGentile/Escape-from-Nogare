@@ -32,7 +32,8 @@ function saveProfile() {
 }
 function connecting() { $('connect').disabled = true; $('connectLabel').textContent = 'VERIFICA SERVER…'; }
 function connectionFailed(message) { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; notice(message); }
-function connected() { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; show('home'); $('message').classList.add('hidden'); Android.requestGps(); }
+function connected() { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; show('home'); $('message').classList.add('hidden'); if(val('code').indexOf('nogar://join#')===0)mode('join'); Android.requestGps(); }
+function prefillInvite(invite, relay) { $('server').value=relay; $('code').value=invite; show('setup'); notice('Invito importato. Premi Connetti, scegli il nickname ed entra nella partita.'); }
 function mode(value) {
   const create = value === 'create';
   $('createPanel').classList.toggle('hidden', !create); $('joinPanel').classList.toggle('hidden', create);
@@ -55,7 +56,7 @@ function setBusy(value) {
 function enter(action) {
   if (busy) return;
   if (!val('name')) return notice('Scegli un nickname prima di entrare.');
-  if (action === 'join' && !/^\d{6}$/.test(val('code'))) return notice('Inserisci il codice a 6 cifre della lobby.');
+  if (action === 'join' && !/^nogar:\/\/join#[A-Za-z0-9_-]+$/.test(val('code'))) return notice('Incolla l’invito completo ricevuto dall’organizzatore, non il solo codice a 6 cifre.');
   const config = {};
   const limits = { minutes: [2, 120], diameter: [100, 10000], ping: [5, 300], shrink: [0, 5], minRadius: [1, 5000] };
   for (const key of Object.keys(limits)) {
@@ -70,7 +71,7 @@ function enter(action) {
   requestedMinRadius = action === 'create' ? config.minRadius : null;
   saveProfile();
   accepting = true; state = null; auth = null;
-  send({ action, name: val('name'), role: val('role'), code: val('code'), config });
+  send({ action, name: val('name'), role: val('role'), code: val('code'), invite: val('code'), config });
 }
 function send(body) { setBusy(true); requestAt = performance.now(); Android.api(JSON.stringify(body)); }
 function call(action, extra) {
@@ -128,7 +129,7 @@ function receive(result) {
   $('end').classList.toggle('hidden', !result.host || !result.started || !!result.ended);
   $('result').classList.toggle('hidden', !result.ended);
   if (result.ended) {
-    const reasons = { timeout: 'TEMPO SCADUTO · Partita terminata.', host: 'PARTITA CHIUSA DAL CREATORE.', team_left: 'PARTITA TERMINATA · Una squadra ha lasciato il campo.' };
+    const reasons = { timeout: 'TEMPO SCADUTO · Partita terminata.', host: 'PARTITA CHIUSA DAL CREATORE.', host_left: 'ORGANIZZATORE DISCONNESSO · Partita terminata.', team_left: 'PARTITA TERMINATA · Una squadra ha lasciato il campo.' };
     $('result').textContent = (reasons[result.ended.reason] || 'PARTITA TERMINATA.') + ' Il GPS è stato fermato.';
     fix = null; gpsAt = 0;
     if (own && map) { map.removeLayer(own); own = null; }
@@ -220,7 +221,7 @@ function refreshClock() {
   $('nextPing').textContent = !state.started || state.ended ? '—' : Math.max(0, Math.ceil(state.nextPingIn - elapsed)) + ' s';
   const stale = elapsed > 15;
   $('connection').classList.toggle('stale', stale);
-  $('connectionText').textContent = state.ended ? 'Partita conclusa · nessuna posizione condivisa' : stale ? 'Connessione in ritardo · ping non aggiornati' : 'Collegato · GPS in background attivo';
+  $('connectionText').textContent = state.ended ? 'Partita conclusa · nessuna posizione condivisa' : stale ? 'Connessione in ritardo · ping non aggiornati' : state.transport === 'host' ? 'Organizzatore sul telefono · messaggi cifrati' : state.transport === 'direct' ? 'Collegamento diretto cifrato · GPS attivo' : 'Inoltro cifrato · GPS in background attivo';
   const gpsFresh = fix && performance.now() - gpsAt < 15000;
   $('gps').textContent = state.ended ? 'GPS FERMO' : gpsFresh ? 'GPS ±' + Math.round(fix.accuracy) + ' M' : 'GPS IN ATTESA';
   if (own) own.setStyle({ opacity: gpsFresh ? 1 : .4, fillOpacity: gpsFresh ? 1 : .3 });

@@ -21,8 +21,11 @@ public class TrackingService extends Service implements LocationListener {
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile Location fix;
     private volatile boolean stopped;
-    private boolean completed;
-    private String endpoint, code, token;
+    private volatile boolean completed;
+    private boolean booting;
+    private String endpoint, code = "…";
+    private volatile PhoneSession session;
+    private long nextPingAt;
     private LocationManager gps;
     private PowerManager.WakeLock wakeLock;
     private ScheduledFuture<?> loop;
@@ -48,7 +51,7 @@ public class TrackingService extends Service implements LocationListener {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(it.atomogentile.nogar.R.drawable.ic_notification)
-                .setContentTitle("NOGAR · GPS attivo · Lobby " + code)
+                .setContentTitle(completed ? "NOGAR · Partita terminata · GPS fermo" : "NOGAR · GPS attivo · Lobby " + code)
                 .setContentText("Posizione condivisa ai ping. Tocca per tornare alla partita.")
                 .setContentIntent(open).setOngoing(true).setCategory(Notification.CATEGORY_SERVICE)
                 .addAction(new Notification.Action.Builder(null, "ESCI E FERMA GPS", stopIntent).build())
@@ -60,11 +63,11 @@ public class TrackingService extends Service implements LocationListener {
         if ("STOP".equals(intent.getAction())) {
             finishTracking(true); return START_NOT_STICKY;
         }
-        if (loop != null) return START_NOT_STICKY;
+        if (booting || loop != null) return START_NOT_STICKY;
+        booting=true;
         endpoint = intent.getStringExtra("endpoint");
-        code = intent.getStringExtra("code");
-        token = intent.getStringExtra("token");
-        if (endpoint == null || code == null || token == null
+        String phoneRequest = intent.getStringExtra("phoneRequest");
+        if (endpoint == null || phoneRequest == null
                 || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             deliver("trackingStopped('Autorizza la posizione precisa e rientra nella lobby')");
             stopSelf(); return START_NOT_STICKY;
@@ -79,9 +82,24 @@ public class TrackingService extends Service implements LocationListener {
                     .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nogar:match");
             wakeLock.acquire(135 * 60 * 1000L);
             gps.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
-            if (gps.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
-                gps.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000, 0, this);
-            loop = worker.scheduleWithFixedDelay(this::tick, 0, 2200, TimeUnit.MILLISECONDS);
+            // Satellite GPS only; no application-level network geolocation provider.
+            worker.execute(() -> {
+                try {
+                    JSONObject creation = new JSONObject(phoneRequest);
+                    session = PhoneSession.open(this, endpoint, creation);
+                    if(stopped){session.finish();return;}
+                    code = session.code();
+                    JSONObject first = session.request(creation.getString("action").equals("create")
+                            ? new JSONObject().put("action","poll") : creation);
+                    if(first.has("error"))throw new IllegalArgumentException(first.getString("error"));
+                    if(stopped){session.finish();return;}
+                    publish(first);
+                    main.post(() -> { if(!stopped)getSystemService(NotificationManager.class).notify(7,notification()); });
+                    loop = worker.scheduleWithFixedDelay(this::tick, 0, 2200, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    main.post(() -> { if(stopped)return; finishTracking(true); deliver("connectionFailed('Impossibile aprire la partita. Controlla il servizio e l’invito; se era in pausa, attendi e riprova.')"); });
+                }
+            });
             // Never keep GPS on indefinitely in an abandoned pre-game lobby.
             main.postDelayed(() -> finishTracking(true), 130 * 60 * 1000L);
         } catch (Exception e) {
@@ -91,22 +109,31 @@ public class TrackingService extends Service implements LocationListener {
         return START_NOT_STICKY;
     }
 
-    private JSONObject request(String action) throws JSONException {
-        return new JSONObject().put("action", action).put("code", code).put("token", token);
+    private JSONObject request(String action) throws JSONException {return new JSONObject().put("action",action);}
+    JSONObject command(JSONObject body) throws Exception {
+        PhoneSession active=session;if(active==null)throw new IllegalStateException("Connessione in corso");return active.request(body);
+    }
+    String invitation(){PhoneSession active=session;return active==null?null:active.invitation();}
+    private void publish(JSONObject result){
+        if(stopped)return;
+        snapshot=result.toString();nextPingAt=SystemClock.elapsedRealtime()+(long)(result.optDouble("nextPingIn",0)*1000);
+        deliver("receive("+snapshot+")");
     }
 
     private void tick() {
-        if (stopped) return;
+        if (stopped || completed) return;
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             main.post(() -> finishTracking(true)); return;
         }
         try {
             Location l = fix;
             boolean fresh = l != null && SystemClock.elapsedRealtimeNanos() - l.getElapsedRealtimeNanos() < 10_000_000_000L;
-            JSONObject body = request(fresh ? "location" : "poll");
-            if (fresh) body.put("location", new JSONObject().put("lat", l.getLatitude())
+            boolean pingDue = nextPingAt<=SystemClock.elapsedRealtime();
+            if(snapshot!=null){JSONObject previous=new JSONObject(snapshot);if(previous.isNull("started"))pingDue=true;}
+            JSONObject body = request(fresh && pingDue ? "location" : "poll");
+            if (fresh && pingDue) body.put("location", new JSONObject().put("lat", l.getLatitude())
                     .put("lng", l.getLongitude()).put("accuracy", l.getAccuracy()));
-            JSONObject result = ApiClient.post(endpoint, body);
+            JSONObject result = command(body);
             if (stopped) return;
             if (result.has("error")) {
                 deliver("notice(" + JSONObject.quote(result.getString("error")) + ")");
@@ -114,10 +141,17 @@ public class TrackingService extends Service implements LocationListener {
                     main.post(() -> finishTracking(false));
                 return;
             }
-            snapshot = result.toString();
-            deliver("receive(" + snapshot + ")");
+            publish(result);
             if (!result.isNull("started") && result.optDouble("remaining", 1) <= 0) {
-                main.post(() -> { completed = true; finishTracking(false); });
+                main.post(() -> {
+                    if(completed||stopped)return;
+                    completed=true;gps.removeUpdates(this);fix=null;
+                    if(result.optBoolean("host")){
+                        getSystemService(NotificationManager.class).notify(7,notification());
+                        // Leave a short grace period for remote peers to fetch their final result.
+                        main.postDelayed(()->finishTracking(false),12000);
+                    } else finishTracking(false);
+                });
             }
         } catch (Exception e) {
             if (!stopped) deliver("networkError()");
@@ -128,10 +162,8 @@ public class TrackingService extends Service implements LocationListener {
         if (stopped) return;
         stopped = true;
         if (loop != null) loop.cancel(false);
-        if (leave && code != null && token != null) {
-            try { worker.execute(() -> { try { ApiClient.post(endpoint, request("leave")); } catch (Exception ignored) {} }); }
-            catch (RejectedExecutionException ignored) {}
-        }
+        try { worker.execute(() -> { PhoneSession active=session;if(active!=null)active.finish(); }); }
+        catch (RejectedExecutionException ignored) {}
         if (!completed) {
             snapshot = null;
             deliver("trackingStopped('Condivisione posizione terminata')");
@@ -147,7 +179,7 @@ public class TrackingService extends Service implements LocationListener {
     }
 
     @Override public void onLocationChanged(Location location) {
-        if (location.hasAccuracy() && location.getAccuracy() <= 1000) {
+        if (!stopped && !completed && location.hasAccuracy() && location.getAccuracy() <= 1000) {
             fix = location;
             deliver("onGps(" + location.getLatitude() + "," + location.getLongitude() + "," + location.getAccuracy() + ")");
         }
@@ -161,6 +193,7 @@ public class TrackingService extends Service implements LocationListener {
         main.removeCallbacksAndMessages(null);
         gps.removeUpdates(this);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        try { worker.execute(() -> { PhoneSession active=session;if(active!=null)active.finish(); }); } catch(RejectedExecutionException ignored){}
         worker.shutdown();
         if (current == this) current = null;
         if (!completed) snapshot = null;

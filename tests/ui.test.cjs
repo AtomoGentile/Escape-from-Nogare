@@ -4,6 +4,7 @@ const { JSDOM } = require('jsdom');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const invitation = 'nogar://join#' + Buffer.from(JSON.stringify({v:1,u:'https://relay.example.test',c:'123456',k:Buffer.alloc(32,1).toString('base64url')})).toString('base64url');
 const assets = path.join(__dirname, '../app/src/main/assets');
 function page(t) {
   const dom = new JSDOM(fs.readFileSync(path.join(assets, 'index.html'), 'utf8'), { runScripts: 'outside-only', url: 'https://nogar.test' });
@@ -27,7 +28,7 @@ test('form: tab, preset, validazione e protezione dal doppio ingresso', t => {
   w.connected(); w.mode('join');
   assert.equal(el('tabJoin').getAttribute('aria-selected'), 'true');
   el('name').value = 'Ghost'; el('code').value = '12'; w.enter('join'); assert.equal(calls.length, 0);
-  el('code').value = '123456'; w.enter('join'); w.enter('join');
+  el('code').value = invitation; w.enter('join'); w.enter('join');
   assert.equal(calls.filter(c => c[0] === 'api').length, 1);
   w.networkError(); assert.equal(el('joinPanel').querySelector('button').disabled, false);
   w.preset('sprint', w.document.querySelector('.preset')); assert.equal(el('minutes').value, '10');
@@ -122,4 +123,14 @@ test('un server precedente non può ignorare silenziosamente il minimo scelto', 
   assert.equal(calls.filter(c => c[0] === 'track').length, 0);
   assert.equal(calls[calls.length - 1][1].action, 'leave');
   assert.match(el('message').textContent, /Aggiorna il server/);
+});
+
+test('invito privato: importa solo sul telefono e richiede l’invito completo', t => {
+  const { w, calls, el } = page(t);
+  w.prefillInvite(invitation, 'https://relay.example.test');
+  assert.equal(el('server').value, 'https://relay.example.test');
+  assert.equal(calls.length, 0); // No networking or GPS merely from opening an invite.
+  w.connected(); assert.equal(el('tabJoin').getAttribute('aria-selected'), 'true');
+  el('name').value='Ghost';el('code').value='123456';w.enter('join');assert.equal(calls.length,0);
+  el('code').value=invitation;w.enter('join');assert.equal(calls[0][1].invite,invitation);
 });

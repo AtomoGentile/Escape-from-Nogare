@@ -37,6 +37,8 @@ jobs:
         run: npm test
       - name: Build Android APK
         run: ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
+      - name: Phone authority and encryption tests
+        run: ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
       - name: Android lint
         run: ./gradlew --no-daemon --max-workers=2 :app:lintDebug
       - name: Verify signature and size

@@ -19,7 +19,7 @@ final class ApiClient {
                     if (buffer.size() > 4096) throw new IOException("Invalid health response");
                 }
                 JSONObject result = new JSONObject(buffer.toString("UTF-8"));
-                if (!result.optBoolean("ok", false) || !"nogar".equals(result.optString("service", "nogar")))
+                if (!result.optBoolean("ok", false) || !"nogar-relay".equals(result.optString("service")))
                     throw new IOException("Not a Nogar server");
             }
         } finally { c.disconnect(); }

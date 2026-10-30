@@ -1,44 +1,40 @@
-# Come ottenere l’URL da inserire in Nogar
+# Collegare i telefoni via Internet · v0.7
 
-L’indirizzo richiesto nella schermata iniziale è **l’URL del server condiviso**, uguale per tutti i giocatori. Si configura una volta. Dopo esserti collegato, premi **Crea lobby**: l’app genera il **codice a 6 cifre** di quella partita. Non devi creare un nuovo URL per ogni lobby.
+**Il telefono organizzatore gestisce la partita.** Serve comunque un piccolo servizio HTTPS per mettere in contatto telefoni dietro CGNAT e inoltrare messaggi cifrati quando il collegamento diretto non riesce. Non è un server delle posizioni: non riceve la chiave dell’invito e non esegue regole del gioco.
 
-GitHub conserva il codice e Actions compila l’APK. Per le lobby serve un servizio Node in esecuzione: GitHub Pages non lo esegue.
+## Ottenere l’indirizzo del servizio
 
-## Percorso semplice: Render
+1. Accedi al tuo account [Render](https://render.com/) e collega il repository GitHub `AtomoGentile/Escape-from-Nogare`.
+2. Usa **New → Blueprint**, branch `main`. `render.yaml` propone `nogar-relay` con piano Free. Controlla il piano prima di confermare. Non viene aperto un servizio a pagamento automaticamente.
+3. Attendi **Live** e copia l’URL HTTPS assegnato nella pagina del servizio. Non esiste un URL pubblico già attivo nel progetto.
+4. Apri quell’URL con `/health`: deve rispondere con `ok: true`, `service: nogar-relay`, `protocol: 2`.
+5. Nell’app l’organizzatore incolla l’indirizzo di base **senza `/health` o `/api`** e preme Connetti.
+6. Crea la lobby dal telefono. Con il pulsante di copia accanto al codice copia l’**invito completo** e condividilo privatamente. Contiene anche la chiave per decifrare i messaggi; non pubblicarlo.
+7. Gli altri aprono l’invito con Nogar o lo copiano e usano **Ho un invito · Incolla** nella schermata iniziale. Dopo Connetti scelgono nome e squadra ed entrano.
 
-Il repository contiene `render.yaml`, una configurazione Blueprint pronta. Devi usare un tuo account Render e autorizzarlo a leggere il repository GitHub. Qui non è stato creato né pubblicato un server a tuo nome.
+Il codice a sei cifre rimane l’identificativo della lobby. Da solo non permette di entrare: una chiave così breve non proteggerebbe le posizioni dal gestore del servizio.
 
-1. Apri [Render](https://render.com/) e accedi.
-2. Seleziona **New → Blueprint** e collega `AtomoGentile/Escape-from-Nogare`. Se il repository è privato, concedi accesso a questo repository durante il collegamento a GitHub.
-3. Seleziona il branch `main`. Render legge `render.yaml` e propone il servizio `nogar-server`.
-4. Controlla il piano prima di confermare: la configurazione propone **Free**, adatto alle prove. Il servizio gratuito può andare in pausa o riavviarsi; le lobby sono in memoria e vengono perse a ogni riavvio. Per le partite continuative scegli consapevolmente un piano che resti attivo, verificandone il prezzo nel tuo account. Non aumentare il numero di istanze: le lobby di questa versione non sono condivise fra server diversi.
-5. Avvia il deploy e attendi lo stato **Live**. Apri la pagina del servizio e copia il suo indirizzo HTTPS. Il nome effettivo viene assegnato da Render: un formato di esempio è `https://nogar-server-xxxx.onrender.com`, **non è un indirizzo già attivo**.
-6. Per controllarlo, apri nel browser lo stesso indirizzo con `/health` alla fine. Deve rispondere con JSON contenente `"ok":true`. Su un servizio che era in pausa il primo accesso può richiedere più tempo.
-7. Nell’app incolla soltanto l’indirizzo di base: **senza `/health` e senza `/api`**. Premi **Connetti**; l’app verifica che il server risponda. Tutti i partecipanti devono usare lo stesso indirizzo.
-8. Crea una lobby e condividi il codice a sei cifre. Gli altri scelgono **Ho un codice**, indicano squadra e nickname ed entrano.
+## Se usi “New → Web Service”
 
-### Se preferisci “New → Web Service”
-
-Collega lo stesso repository e imposta:
-
-| Impostazione | Valore |
+| Campo | Valore |
 |---|---|
-| Branch | `main` |
 | Runtime | Node |
+| Branch | `main` |
 | Root Directory | `server` |
-| Build Command | `node --check server.mjs` |
-| Start Command | `node server.mjs` |
+| Build Command | `node --check relay.mjs` |
+| Start Command | `node relay.mjs` |
 | Health Check Path | `/health` |
-| Environment `HOST` | `0.0.0.0` |
-| Environment `NODE_VERSION` | `22` |
+| `HOST` | `0.0.0.0` |
+| `NODE_VERSION` | `22` |
 
-Lascia che Render assegni `PORT`; il server la legge automaticamente. Non servono chiavi Maps o segreti per questo server. Usa il certificato HTTPS fornito dal servizio.
+Render assegna `PORT`; il programma la legge. Il certificato HTTPS viene fornito dall’hosting. Non servono chiavi Maps, chiavi di cifratura da inserire sul server o credenziali TURN. Una sola istanza: le caselle sono in memoria.
 
-## Se il collegamento non riesce
+**Deploy precedente:** se Start Command era `node server.mjs`, sostituiscilo con `node relay.mjs`. L’app nuova rifiuta il vecchio server, che vedeva le posizioni in chiaro dopo la terminazione TLS.
 
-- **Indirizzo non valido**: usa `https://` e copia il dominio del servizio, non il link a GitHub, alla dashboard di Render o al download dell’APK.
-- **Server non raggiungibile**: verifica che sia Live e che `/health` risponda. Se il piano gratuito era in pausa, aspetta l’avvio e riprova nell’app.
-- **Nessuna porta rilevata**: controlla `HOST=0.0.0.0` e il comando di avvio. Il valore predefinito locale `127.0.0.1` non espone il servizio a Render.
-- **Lobby scomparsa**: un deploy, un riavvio o la pausa del servizio azzera la memoria. Create una nuova lobby quando il server è tornato attivo.
+## Costi e dati
 
-Le coordinate vengono elaborate dal server scelto dall’organizzatore. Usa il tuo servizio HTTPS e condividi indirizzo e codice solo con i partecipanti.
+Il piano gratuito può andare in pausa o riavviarsi: un riavvio elimina le caselle e può interrompere le partite. Al primo collegamento, attendi che `/health` risponda e riprova. Nessun pagamento è necessario per provare, ma non è garantito un servizio gratuito sempre disponibile.
+
+Il relay vede IP, orari, identificatori e pacchetti cifrati. I telefoni restano i soli possessori della chiave, salvo chi riceve una copia dell’invito. STUN Cloudflare vede le informazioni necessarie alla connessione diretta. OpenStreetMap vede IP e richieste delle tessere, che possono rivelare l’area visualizzata. Non è una modalità senza alcun servizio esterno.
+
+Il telefono organizzatore deve restare acceso e connesso, con il servizio GPS attivo in background. Se esce o si spegne non viene eletto un altro organizzatore. Per fermare tutto usa la notifica o Esci dalla lobby.

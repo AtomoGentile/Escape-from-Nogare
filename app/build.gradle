@@ -1,5 +1,12 @@
 plugins { id 'com.android.application' }
 android { namespace 'it.atomogentile.nogar'; compileSdk 35
- defaultConfig { applicationId 'it.atomogentile.nogar'; minSdk 28; targetSdk 35; versionCode 6; versionName '0.6.0' }
+ defaultConfig { applicationId 'it.atomogentile.nogar'; minSdk 28; targetSdk 35; versionCode 7; versionName '0.7.0' }
+ testOptions { unitTests.all { systemProperty 'nogar.repository', rootProject.projectDir.absolutePath } }
  buildTypes { release { minifyEnabled true; shrinkResources true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' } }
+}
+
+dependencies {
+ implementation 'io.github.webrtc-sdk:android:150.7871.04'
+ testImplementation 'junit:junit:4.13.2'
+ testImplementation 'org.json:json:20240303'
 }

@@ -1,95 +1,72 @@
-# NOGAR // HUNT
+# NOGAR // HUNT · Android 9+
 
-Prima versione Android di nascondino geografico: Android 9+ (API 28), interfaccia arcade, mappa reale OpenStreetMap con Leaflet 1.9.4 incluso. Nessuna chiave Maps necessaria. Non usa Google Maps né geocoding. Le tessere richiedono Internet: nessun download offline o prefetch. Attribuzione sempre visibile; per uso pubblico ad alto traffico scegliere un provider di tile con contratto adeguato.
+Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.7 il telefono organizzatore gestisce la partita.** Il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
 
-## Come giocare
+## Giocare
 
-1. Ospitare il server su un indirizzo **HTTPS** e inserirlo nell'app su tutti i telefoni.
-2. Scegliere nickname e squadra; creare una lobby o entrare col codice a sei cifre.
-3. Il creatore sceglie durata, diametro iniziale, intervallo ping e velocità di ritiro del **raggio** in m/s e raggio minimo finale. Il minimo deve essere tra 1 m e metà del diametro iniziale. Servono almeno una preda e un cacciatore per iniziare.
-4. Consentire GPS preciso e notifiche. Dopo l’ingresso il servizio Android mantiene GPS e ping attivi anche con schermo spento o app in background. Il creatore avvia con un fix recente entro 100 m di precisione: quel punto diventa il centro fisso del campo.
-5. Tutti vedono la propria posizione continua e l'ultimo ping di tutti gli altri, con squadra, precisione ed età. Il server limita i ping durante la partita; la prima posizione viene pubblicata subito. In attesa lobby le posizioni si aggiornano ogni circa 2 secondi.
-6. Il campo si riduce fino a un raggio minimo scelto (25 m predefiniti); alla scadenza termina il timer. Il creatore può terminare la partita per tutti; termina anche se una squadra lascia la lobby. Le coordinate vengono eliminate alla fine. Catture e vittoria sono concordate di persona: non ci sono eliminazioni automatiche o rilevamento contatto.
+1. Collega nell’app un servizio HTTPS `nogar-relay`. [Guida per ottenere l’indirizzo](docs/SERVER.md). Tutti usano la stessa versione dell’app.
+2. L’organizzatore sceglie nickname, squadra e regole, poi **Crea lobby**. Il suo telefono deve rimanere acceso e connesso; GPS e connessioni sono nel servizio Android in background con notifica persistente.
+3. Tocca il pulsante di copia accanto al codice: copia l’**invito privato completo** `nogar://join#…`. Condividilo solo con i partecipanti. Il codice a sei cifre identifica la lobby, ma non basta per entrare perché non contiene la chiave crittografica.
+4. Gli altri aprono l’invito con Nogar oppure lo copiano e toccano **Ho un invito · Incolla**. L’app propone il servizio dell’invito senza contattarlo automaticamente. Premono Connetti, scelgono nickname e squadra ed entrano.
+5. Servono una preda e un cacciatore connessi. L’organizzatore avvia con un GPS recente e preciso entro 100 m: questo punto diventa il centro fisso del campo.
+6. Ognuno vede il proprio GPS continuo e l’ultimo ping degli altri. Entrambe le squadre vengono rivelate. Fuori dalla lobby, il client invia una posizione all’organizzatore solo quando è dovuto un ping, anziché spedire continuamente gli spostamenti intermedi.
+7. Il creatore può terminare la partita. Alla scadenza o all’uscita di una squadra il motore chiude la partita e cancella le posizioni dei giocatori. Le catture si concordano di persona, senza rilevamento contatto automatico.
 
-| Preset | Durata | Diametro | Ping | Ritiro raggio |
-|---|---:|---:|---:|---:|
-| Sprint | 10 min | 600 m | 15 s | 0,4 m/s |
-| Classic | 20 min | 1200 m | 30 s | 0,4 m/s |
-| Explorer | 30 min | 2000 m | 45 s | 0,5 m/s |
+Il telefono organizzatore non viene sostituito automaticamente. Se esce, viene spento o il processo viene terminato, la partita si interrompe. Il relay cancella la casella dopo due minuti senza il telefono organizzatore o dopo tre ore; un riavvio del relay può interrompere anche la sessione corrente. I partecipanti non possono rientrare dopo l’avvio se il loro processo è stato perso.
 
-Indicazioni da adattare al luogo, non valutazioni di sicurezza. Il GPS non garantisce precisione assoluta. Il cerchio ignora strade e ostacoli: usare solo luoghi autorizzati e percorsi sicuri.
+## Regole e preset
 
-## Server
+| Preset | Durata | Diametro | Ping | Ritiro raggio | Raggio minimo |
+|---|---:|---:|---:|---:|---:|
+| Sprint | 10 min | 600 m | 15 s | 0,4 m/s | 25 m |
+| Classic | 20 min | 1200 m | 30 s | 0,4 m/s | 25 m |
+| Explorer | 30 min | 2000 m | 45 s | 0,5 m/s | 25 m |
 
-Per ottenere l’indirizzo HTTPS da inserire nell’app, segui la [guida passo passo Render](docs/SERVER.md). Il file `render.yaml` prepara il servizio da collegare al tuo account; nessun server pubblico è già stato creato. Lo stesso URL serve a tutti i giocatori; ogni lobby genera poi il proprio codice.
+Tutti i parametri sono personalizzabili. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il server sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. Usare solo aree autorizzate e percorsi sicuri.
 
-Node.js 22 o successivo, senza dipendenze esterne:
+## Cosa passa dai servizi esterni
+
+- **Diretto:** WebRTC DataChannel fra ciascun partecipante e l’organizzatore. Non vengono create tracce audio/video né richiesti microfono o fotocamera.
+- **Collegamento e alternativa:** `server/relay.mjs` trasporta la segnalazione WebRTC e, quando il diretto non risponde, gli stessi messaggi di gioco cifrati via HTTPS. Non occorre un server TURN. Il relay vede IP, identificatori, tempi, dimensioni e pacchetti cifrati; conserva code in RAM, non uno storico delle posizioni. Il servizio rimane contattato per disponibilità e segnalazione anche quando il canale di gioco è diretto.
+- **Cifratura:** AES-256-GCM con nonce casuale e AAD legata a lobby, mittente e destinatario. La chiave casuale resta nell’invito sui telefoni e non viene inviata al relay. Anche SDP/candidati ICE sono cifrati. La finestra di sequenza rifiuta replay e consente riordinamento limitato. Le richieste ritentate usano lo stesso identificatore e l’organizzatore conserva risposte limitate per evitare di rieseguire i comandi.
+- **STUN:** `stun.cloudflare.com:3478` aiuta a trovare il collegamento diretto. Riceve informazioni di rete, non le coordinate del gioco. Per infrastruttura propria, sostituire l’URL STUN in `PhoneSession.java`.
+- **Mappa:** le tessere arrivano da OpenStreetMap via HTTPS, senza chiave Google Maps. Il fornitore vede IP e area delle tessere richieste, non i marker aggiunti localmente. Mappe offline non sono implementate. Rispettare la [policy delle tessere](https://operations.osmfoundation.org/policies/tiles/) e scegliere un provider appropriato per traffico pubblico elevato.
+
+Chi possiede l’invito è autorizzato ad accedere alla partita. La chiave è condivisa fra i partecipanti: niente revoca individuale, segretezza futura o protezione da un partecipante che ricondivide l’invito. L’organizzatore è l’autorità fidata. Nessuna promessa di anonimato, nessun audit crittografico indipendente effettuato.
+
+## Avvio del solo relay
+
+Node 22+, nessuna dipendenza runtime:
 
 ```sh
-cd /workspace/Escape-from-Nogar-/server
-npm test
-npm start
+cd server
+HOST=0.0.0.0 PORT=8080 npm start
 ```
 
-Ascolta su `127.0.0.1:8080`, configurabile con `HOST` e `PORT`. Verifica `GET /health`. Per dispositivi reali serve un dominio HTTPS raggiungibile con reverse proxy (es. Caddy: `reverse_proxy 127.0.0.1:8080`) e certificato valido. Il certificato TLS non viene disabilitato. Non viene pubblicato automaticamente alcun servizio.
+Per gli utenti finali esporre tramite HTTPS con certificato valido. `GET /health` deve restituire `{"ok":true,"service":"nogar-relay","protocol":2}`. Il file `render.yaml` configura questo servizio sul proprio account Render. La pubblicazione non è stata effettuata dall’agente; non esiste un URL pubblico preconfigurato. Hosting e rete mobile possono imporre quote di traffico: non è garantito un uso gratuito illimitato. Il piano gratuito può dormire o riavviarsi: la disponibilità continua non è garantita.
 
-Distribuzione: copiare `server/` su una VM con Node, eseguire tramite supervisore (systemd), esporre solo il reverse proxy HTTPS. Non registrare i body delle richieste: contengono token e coordinate. Una singola istanza conserva le lobby in RAM; riavviarla perde le partite. Massimo 50 utenti per lobby e 1000 lobby, scadenza dopo 6 ore di inattività. Nessun account o storico. Il codice consente l'ingresso prima dell'avvio: condividerlo solo coi partecipanti. I token casuali restano nella memoria del servizio Android. Tornando all’app si ripristina la lobby finché il servizio è vivo; se Android termina il processo occorre un nuovo ingresso, non consentito a partita iniziata. La versione attuale non include reconnect persistente, espulsione, anti-cheat o protezione DDoS distribuita.
+Il precedente `server/server.mjs` rimane come riferimento/test della vecchia architettura e si avvia solo con `npm run start:legacy`. **L’app v0.7 rifiuta questo endpoint**, perché elaborerebbe le posizioni nel cloud. Se avevi già un deploy, cambia Start Command in `node relay.mjs` e ridistribuisci.
 
-## Android
+## Sviluppo e build
 
-JDK 17 o 21, Gradle 8.11.1, SDK Android 35 e Build Tools 35.0.0. Impostare `ANDROID_HOME` oppure `sdk.dir` in `local.properties` (ignorato da Git).
+JDK 17, Gradle Wrapper 8.11.1, SDK Android 35, Build Tools 35.0.0, Node 22+. Impostare `ANDROID_HOME` oppure `sdk.dir` in `local.properties` ignorato da Git.
 
 ```sh
-./gradlew --no-daemon --max-workers=2 :app:assembleDebug :app:lintDebug
+npm ci --ignore-scripts
+npm test
+./gradlew --no-daemon --max-workers=2 :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-La build debug è installabile per prove; per distribuzione pubblica occorrono firma release, verifica delle policy store e collaudo su dispositivi Android 9 e recenti. Il progetto non include credenziali di firma. Leaflet è distribuito con licenza BSD-2-Clause in `assets/LEAFLET-LICENSE`. Le immagini della mappa arrivano via HTTPS da `tile.openstreetmap.org` (policy: https://operations.osmfoundation.org/policies/tiles/).
+WebRTC nativo è fissato a `io.github.webrtc-sdk:android:150.7871.04` (min API 21; l’app richiede API 28). Include ARM32, ARM64, x86 e x86_64, aumentando l’APK a circa 49 MB, entro il limite di 100 MB. Il build debug è per prove; la distribuzione pubblica richiede firma propria. I file di licenza Leaflet, Anton, SDK WebRTC e WebRTC nativo/PATENTS sono inclusi negli asset. R8 conserva le API WebRTC richiamate da JNI.
 
-## Collaudo sul campo necessario
+Actions esegue test Node, build APK, test JVM dell’autorità/cifratura/relay reale, lint e verifica firma/dimensioni; carica APK e report. La configurazione è nel repository, l’esito remoto richiede accesso ai log di GitHub.
 
-Due telefoni reali: creare/entrare, autorizzare GPS, verificare ping di entrambe le squadre, avviare, controllare cerchio e timer, interrompere rete, mettere in background e uscire. Nessuna prova in emulatore sostituisce questo controllo. V2 iperrealistica non implementata.
+## Stato delle verifiche e limiti
 
-## GitHub Actions
+- Test Node del precedente motore, relay opaco, validazione, autorizzazioni e DOM dell’interfaccia.
+- Test JVM di regole sul telefono, raggio minimo, ping, ruoli, uscita, AES-GCM, manomissione, mittente/lobby sbagliati, inviti e replay.
+- Integrazione JVM con **relay Node reale**: richiesta cifrata, elaborazione sull’autorità Java e risposta cifrata. Non usa WebRTC nativo: verifica l’alternativa di inoltro e il formato crittografico, non la negoziazione ICE.
+- Build e lint Android; nessun telefono/emulatore disponibile. **La negoziazione WebRTC, le reti mobili reali e il background su Android 9/recente restano da collaudare su due dispositivi.**
 
-Il workflow `.github/workflows/android.yml` compila a ogni push/PR e può partire manualmente da **Actions → Android APK → Run workflow**. Esegue 19 test server/interfaccia e lint, verifica il limite di 100 MB e pubblica `nogar-android-debug` negli artefatti della run. Il workflow viene eseguito solo dopo aver pubblicato questi file nel repository; la sua presenza locale non equivale a una run completata.
-
-### Stato delle verifiche locali
-
-19 test automatici: 9 test del server con tempo simulato (ping, ruoli, scadenza, autorizzazioni, uscita, coordinate e limiti) e 10 test DOM dell’interfaccia (form, nomi sicuri, timer, GPS delegato e uscita). Eseguirli con `npm ci --ignore-scripts && npm test` dalla radice. I test DOM simulano la mappa e il bridge Android: non verificano grafica, GPS fisico o ciclo di vita Android. Il layout degli asset è stato verificato in Chromium a 390 × 844 servendoli via HTTP locale: ingresso e lobby non hanno errori JavaScript o overflow orizzontale. Questo controllo non sostituisce il collaudo WebView/Android e non verifica GPS o disponibilità delle tessere mappa. Nessun telefono o emulatore Android è stato usato.
-
-
-## GPS in background (v0.3)
-
-`TrackingService` usa un foreground service Android di tipo `location`, una notifica persistente con **ESCI E FERMA GPS**, un ciclo di rete nativo indipendente dai timer WebView e un wake lock limitato. Parte solo entrando in una lobby con app visibile e permesso GPS preciso. Non richiede il permesso “posizione sempre” perché il servizio viene avviato mentre l’app è visibile. Su Android 13+ richiede anche le notifiche: se negate Android può nascondere la notifica dal cassetto, pur mostrando il servizio nel gestore delle app attive.
-
-Esci dalla lobby o usa l’azione nella notifica per fermare il GPS. Si ferma anche a fine partita e dopo massimo 130 minuti di sessione, compresa l’attesa in lobby. L’uscita dal server è tentata anche se manca rete, ma non può essere garantita finché la rete non torna. Un arresto forzato, un riavvio o le restrizioni batteria del produttore possono interrompere il servizio: non esiste garanzia universale a schermo spento e non viene richiesto di disattivare indiscriminatamente l’ottimizzazione batteria.
-
-## Revisione v0.3
-
-- Identità con l’icona fornita (resa vettoriale e adattiva), schermate di ingresso, preset e dashboard ridisegnate; mappa chiara con legenda e pulsanti ricentra/zona.
-- Copia codice, cambio squadra prima dell’avvio, chiusura host, conferma uscita, squadra e stato online dei partecipanti.
-- Timer e cerchio interpolati usando un orologio monotono: continuano a scorrere tra le risposte. Segnalazioni esplicite per GPS e connessione obsoleti.
-- Ping condivisi con scadenza iniziale comune; nomi mostrati come testo, risposte di vecchie lobby ignorate; mappa ripristinata tra sessioni.
-- Limiti richieste per giocatore invece di una quota troppo bassa condivisa dal reverse proxy; pulizia periodica delle lobby inattive e cancellazione coordinate a fine partita.
-
-Il servizio server deve comunque essere ospitato su HTTPS per giocare fra telefoni: GitHub Actions compila l’APK ma non ospita le lobby.
-
-
-## v0.4 · Mockup e build riproducibile
-
-Interfaccia riallineata al concept approvato: font Anton incluso (SIL OFL, `assets/ANTON-LICENSE`), radar circolare, profilo modificabile e salvato localmente senza token, icone vettoriali di prede/cacciatori, preset con segno di selezione, impostazioni campo, dashboard e schede giocatore. La mappa resta geografica e chiara.
-
-Gradle Wrapper 8.11.1 è incluso con checksum SHA-256 della distribuzione. Actions installa esplicitamente piattaforma Android 35 e Build Tools 35.0.0, separa test/build/lint/verifica APK e conserva APK e report anche se un controllo successivo fallisce. Non richiede segreti per la build debug. Verificati localmente Node 22, wrapper con cache vuota, build e lint. L’esito della run remota non è verificabile finché l’ambiente non può leggere `api.github.com`; serve il log del passaggio fallito per attribuire la precedente segnalazione a una causa specifica.
-
-
-## v0.5 · Indirizzo server e pulsanti
-
-Configurazione Render e guida `docs/SERVER.md` per ottenere un URL HTTPS con il proprio account. L’app verifica `/health` prima di salvare l’indirizzo e aprire la lobby; include una guida accessibile dal collegamento iniziale. Il controllo accetta anche il precedente `/health` con `ok: true`.
-
-I pulsanti usano caratteri leggibili senza il font condensato dei titoli, proporzioni stabili, altezze coerenti, icone quadrate e righe flessibili. Verificati nel browser a 320, 360, 390 e 480 px sulle schermate ingresso, lobby e partita: nessun overflow di pulsanti o pagina e nessuna icona stirata. Non è una prova su telefono fisico.
-
-
-## v0.6 · Raggio minimo personalizzabile
-
-Nelle impostazioni del campo il creatore sceglie **Raggio minimo · m**. Tutti i preset propongono 25 m; sono ammessi valori da 1 m fino al raggio iniziale (metà del diametro). La mappa, il calcolo del server e il riepilogo della lobby usano lo stesso limite. I client precedenti che omettono il parametro mantengono 25 m. Aggiornare sia APK sia server per utilizzare il limite personalizzato.
+Il servizio parte mentre l’app è visibile con GPS preciso; su Android 13+ chiede anche le notifiche. La notifica permette di fermare GPS e condivisione. Limite di sessione 130 minuti, compresa la lobby. Restrizioni batteria, arresto forzato, riavvio o cambio rete possono interromperlo. Nessun servizio a pagamento è attivato automaticamente.
