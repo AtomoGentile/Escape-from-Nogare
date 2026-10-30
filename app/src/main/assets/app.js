@@ -8,8 +8,29 @@ let pendingAction = null, dialogFocus = null, requestedMinRadius = null;
 const presets = { sprint: [10, 600, 15, .4, 25], classic: [20, 1200, 30, .4, 25], explorer: [30, 2000, 45, .5, 25] };
 
 function show(id) {
+  if (id !== 'game') setMapExpanded(false);
   ['setup', 'home', 'game'].forEach(x => $(x).classList.toggle('hidden', x !== id));
   if (id === 'game') setTimeout(() => { if (map) map.invalidateSize(); }, 100);
+}
+function mapExpanded() { return $('mapView').classList.contains('is-expanded'); }
+function toggleMapExpanded() { setMapExpanded(!mapExpanded()); }
+function setMapExpanded(expanded) {
+  if (expanded === mapExpanded()) return;
+  $('mapView').classList.toggle('is-expanded', expanded);
+  document.body.classList.toggle('map-expanded', expanded);
+  const button = $('expandMap');
+  button.setAttribute('aria-expanded', String(expanded));
+  button.setAttribute('aria-label', expanded ? 'Torna alla partita' : 'Apri mappa a schermo intero');
+  button.querySelector('span').textContent = expanded ? 'TORNA ALLA PARTITA' : 'SCHERMO INTERO';
+  button.querySelector('use').setAttribute('href', expanded ? '#i-collapse' : '#i-expand');
+  button.focus({ preventScroll: true });
+  // Reuse the live Leaflet instance: preserve center, zoom, GPS and ping markers.
+  requestAnimationFrame(() => { if (map) map.invalidateSize({ pan: false }); });
+}
+function handleBack() {
+  if (!$('dialog').classList.contains('hidden')) { closeDialog(); return true; }
+  if (mapExpanded()) { setMapExpanded(false); return true; }
+  return false;
 }
 function notice(message) { $('message').classList.remove('hidden'); $('message').textContent = message; }
 function openSettings() {
@@ -259,7 +280,13 @@ function confirmAction() {
   }
 }
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') closeDialog();
+  if (event.key === 'Escape' && handleBack()) { event.preventDefault(); return; }
+  if (event.key === 'Tab' && mapExpanded() && $('dialog').classList.contains('hidden')) {
+    const controls = Array.from($('mapView').querySelectorAll('button,a[href]')).filter(el => el.getClientRects().length);
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
   if (event.key === 'Tab' && !$('dialog').classList.contains('hidden')) {
     const buttons = $('dialog').querySelectorAll('button');
     if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons[1].focus(); }

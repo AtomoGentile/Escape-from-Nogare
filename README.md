@@ -1,4 +1,4 @@
-# NOGAR // HUNT · Android 9+ · v0.9.1
+# NOGAR // HUNT · Android 9+ · v0.9.2
 
 Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.9 puoi scegliere: server completo sul tuo PC oppure partita sul telefono organizzatore con Firebase/relay cifrato.** In modalità telefono il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
 
@@ -15,7 +15,7 @@ Il telefono continua a gestire le regole e le posizioni rimangono cifrate. L'app
 3. Tocca il pulsante di copia accanto al codice: copia l’**invito privato completo** `nogar://join#…`. Condividilo solo con i partecipanti. Il codice a sei cifre identifica la lobby, ma non basta per entrare perché non contiene la chiave crittografica.
 4. Gli altri aprono l’invito con Nogar oppure lo copiano e toccano **Ho un invito · Incolla**. L’app propone il servizio dell’invito senza contattarlo automaticamente. Premono Connetti, scelgono nickname e squadra ed entrano.
 5. Servono una preda e un cacciatore connessi. L’organizzatore avvia con un GPS recente e preciso entro 100 m: questo punto diventa il centro fisso del campo.
-6. Ognuno vede il proprio GPS continuo e l’ultimo ping degli altri. Entrambe le squadre vengono rivelate. Fuori dalla lobby, il client invia una posizione all’organizzatore solo quando è dovuto un ping, anziché spedire continuamente gli spostamenti intermedi.
+6. Il pulsante **Schermo intero** espande la mappa mantenendo ricentramento e zona; **Torna alla partita** o Indietro la riduce. Ognuno vede il proprio GPS continuo e l’ultimo ping degli altri. Entrambe le squadre vengono rivelate. Fuori dalla lobby, il client invia una posizione all’organizzatore solo quando è dovuto un ping, anziché spedire continuamente gli spostamenti intermedi.
 7. Il creatore può terminare la partita. Alla scadenza o all’uscita di una squadra il motore chiude la partita e cancella le posizioni dei giocatori. Le catture si concordano di persona, senza rilevamento contatto automatico.
 
 In modalità telefono, il telefono organizzatore non viene sostituito automaticamente. Se esce, viene spento o il processo viene terminato, la partita si interrompe. Il relay cancella la casella dopo due minuti senza il telefono organizzatore o dopo tre ore; un riavvio del relay può interrompere anche la sessione corrente. I partecipanti non possono rientrare dopo l’avvio se il loro processo è stato perso.

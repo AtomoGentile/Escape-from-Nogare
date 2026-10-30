@@ -164,3 +164,23 @@ test('diametro oltre 10 km e raggio minimo oltre 5 km possono creare una lobby',
   const request=calls.find(c=>c[0]==='api')[1];
   assert.equal(request.config.diameter,50000);assert.equal(request.config.minRadius,12000);
 });
+
+test('mappa espansa conserva la partita e si riduce con Indietro o uscita', async t => {
+  const {w,el,state,calls,map}=page(t);w.eval('accepting=true');w.receive(state);
+  let resized=0;map.invalidateSize=()=>resized++;
+  w.requestAnimationFrame=callback=>callback();
+  w.toggleMapExpanded();
+  assert.equal(el('mapView').classList.contains('is-expanded'),true);
+  assert.equal(w.document.body.classList.contains('map-expanded'),true);
+  assert.equal(el('expandMap').getAttribute('aria-expanded'),'true');
+  assert.match(el('expandMap').textContent,/TORNA ALLA PARTITA/);
+  assert.equal(resized,1);
+  w.receive({...state,serverTime:state.serverTime+1000});
+  assert.equal(el('mapView').classList.contains('is-expanded'),true);
+  assert.equal(w.handleBack(),true);
+  assert.equal(el('expandMap').getAttribute('aria-expanded'),'false');
+  assert.equal(w.handleBack(),false);
+  w.toggleMapExpanded();w.trackingStopped('Uscito');
+  assert.equal(w.document.body.classList.contains('map-expanded'),false);
+  assert.equal(calls.filter(c=>c[0]==='stop').length,0);
+});

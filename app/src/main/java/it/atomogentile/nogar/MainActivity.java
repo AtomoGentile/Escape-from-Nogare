@@ -27,6 +27,10 @@ public class MainActivity extends Activity {
         endpoint = getPreferences(0).getString("server", "");
         web = new WebView(this);
         setContentView(web);
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBackNavigation);
+        }
         if (Build.VERSION.SDK_INT >= 35) {
             web.setOnApplyWindowInsetsListener((view, insets) -> {
                 Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
@@ -36,7 +40,7 @@ public class MainActivity extends Activity {
         }
         web.setBackgroundColor(0xff090d18);
         web.getSettings().setJavaScriptEnabled(true); // Bundled UI only; remote navigation is blocked.
-        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.9.1 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
+        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.9.2 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);
         web.getSettings().setAllowContentAccess(false);
@@ -206,6 +210,13 @@ public class MainActivity extends Activity {
         }
         if (pendingPhoneRequest != null && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED) startPhoneRequest();
     }
+    private void handleBackNavigation() {
+        if (!ready) { moveTaskToBack(true); return; }
+        web.evaluateJavascript("handleBack()", handled -> {
+            if (!"true".equals(handled)) moveTaskToBack(true);
+        });
+    }
+    @Override public void onBackPressed() { handleBackNavigation(); }
     @Override protected void onPause() { visible = false; super.onPause(); }
     @Override protected void onDestroy() {
         if (TrackingService.screen.get() == this) TrackingService.screen.clear();
