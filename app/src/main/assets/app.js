@@ -1,0 +1,233 @@
+'use strict';
+const $ = id => document.getElementById(id);
+const val = id => $(id).value.trim();
+let accepting = false, state = null, auth = null, fix = null;
+let map = null, layer = null, own = null, accuracyRing = null, zone = null;
+let busy = false, receivedAt = 0, requestAt = 0, gpsAt = 0, zoneFitted = false, activeCode = null;
+let pendingAction = null, dialogFocus = null;
+const presets = { sprint: [10, 600, 15, .4], classic: [20, 1200, 30, .4], explorer: [30, 2000, 45, .5] };
+
+function show(id) {
+  ['setup', 'home', 'game'].forEach(x => $(x).classList.toggle('hidden', x !== id));
+  if (id === 'game') setTimeout(() => { if (map) map.invalidateSize(); }, 100);
+}
+function notice(message) { $('message').classList.remove('hidden'); $('message').textContent = message; }
+function connected() { show('home'); $('message').classList.add('hidden'); Android.requestGps(); }
+function mode(value) {
+  const create = value === 'create';
+  $('createPanel').classList.toggle('hidden', !create); $('joinPanel').classList.toggle('hidden', create);
+  [['tabCreate', create], ['tabJoin', !create]].forEach(pair => {
+    $(pair[0]).classList.toggle('active', pair[1]); $(pair[0]).setAttribute('aria-selected', String(pair[1]));
+  });
+}
+function preset(key, button) {
+  ['minutes', 'diameter', 'ping', 'shrink'].forEach((id, i) => { $(id).value = presets[key][i]; });
+  document.querySelectorAll('.preset').forEach(el => {
+    el.classList.toggle('selected', el === button); el.setAttribute('aria-pressed', String(el === button));
+  });
+  $('presetSummary').textContent = 'Ping ogni ' + presets[key][2] + ' s · ritiro del raggio ' + String(presets[key][3]).replace('.', ',') + ' m/s';
+}
+function setBusy(value) {
+  busy = value;
+  document.querySelectorAll('.entry').forEach(el => { el.disabled = value; });
+}
+function enter(action) {
+  if (busy) return;
+  if (!val('name')) return notice('Scegli un nickname prima di entrare.');
+  if (action === 'join' && !/^\d{6}$/.test(val('code'))) return notice('Inserisci il codice a 6 cifre della lobby.');
+  const config = {};
+  const limits = { minutes: [2, 120], diameter: [100, 10000], ping: [5, 300], shrink: [0, 5] };
+  for (const key of Object.keys(limits)) {
+    config[key] = Number(val(key));
+    if (action === 'create' && (!val(key) || !Number.isFinite(config[key]) || config[key] < limits[key][0] || config[key] > limits[key][1])) {
+      $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro 100–10000 m, ping 5–300 s, ritiro 0–5 m/s.');
+    }
+  }
+  accepting = true; state = null; auth = null;
+  send({ action, name: val('name'), role: val('role'), code: val('code'), config });
+}
+function send(body) { setBusy(true); requestAt = performance.now(); Android.api(JSON.stringify(body)); }
+function call(action, extra) {
+  if (!auth || busy || (state && state.ended && action !== 'leave')) return;
+  send(Object.assign({}, auth, { action }, extra || {}));
+}
+function networkError() {
+  // Background retries belong to the native service, not a suspended JS timer.
+  setBusy(false);
+  notice('Connessione persa. Riprovo automaticamente durante la partita; i ping visibili possono essere obsoleti.');
+  refreshClock();
+}
+function receive(result) {
+  setBusy(false);
+  if (!accepting) return;
+  if (result.error) {
+    if (result.errorCode === 'ROOM_GONE' || result.errorCode === 'AUTH_INVALID') trackingStopped(result.error);
+    else notice(result.error);
+    return;
+  }
+  if (result.left) return;
+  if (auth && (auth.code !== result.code || auth.token !== result.token)) return;
+  if (state && result.serverTime < state.serverTime) return;
+  if (activeCode !== result.code) {
+    activeCode = result.code; zoneFitted = false; fix = null; gpsAt = 0;
+    if (map) { layer.clearLayers(); if (own) map.removeLayer(own); if (accuracyRing) map.removeLayer(accuracyRing); own = null; accuracyRing = null; }
+  }
+  auth = { code: result.code, token: result.token }; state = result; receivedAt = performance.now();
+  if (!result.ended && (!result.started || result.remaining > 0)) Android.startTracking(JSON.stringify(auth));
+  $('message').classList.add('hidden');
+  show('game'); $('lobbyCode').textContent = result.code;
+  const me = result.players.find(p => p.self);
+  const hunters = result.players.filter(p => p.role === 'hunter').length;
+  const prey = result.players.length - hunters;
+  $('count').textContent = String(result.players.length);
+  $('teams').textContent = prey + ' PREDE / ' + hunters + ' CACC.';
+  $('myRole').textContent = me && me.role === 'hunter' ? '⌖ CACCIATORE' : '◈ PREDA';
+  $('myRole').classList.toggle('hunter', !!me && me.role === 'hunter');
+  $('gameRole').value = me ? me.role : 'prey';
+  $('lobbyControls').classList.toggle('hidden', !!result.started || !!result.ended);
+  $('start').classList.toggle('hidden', !result.host);
+  const online = result.players.filter(p => p.online);
+  const enough = online.some(p => p.role === 'hunter') && online.some(p => p.role === 'prey');
+  $('start').disabled = !enough || !me || !me.location || me.location.accuracy > 100 || result.serverTime - me.location.at > 15000;
+  $('startHint').textContent = !result.host ? 'Attendi l’avvio del creatore. Puoi ancora cambiare squadra.'
+    : !enough ? 'Servono almeno una preda e un cacciatore connessi.'
+    : $('start').disabled ? 'Attendi il tuo GPS preciso (±100 m o meglio) per fissare il centro.' : 'Squadre pronte. Il campo partirà dalla tua posizione GPS.';
+  $('end').classList.toggle('hidden', !result.host || !result.started || !!result.ended);
+  $('result').classList.toggle('hidden', !result.ended);
+  if (result.ended) {
+    const reasons = { timeout: 'TEMPO SCADUTO · Partita terminata.', host: 'PARTITA CHIUSA DAL CREATORE.', team_left: 'PARTITA TERMINATA · Una squadra ha lasciato il campo.' };
+    $('result').textContent = (reasons[result.ended.reason] || 'PARTITA TERMINATA.') + ' Il GPS è stato fermato.';
+    fix = null; gpsAt = 0;
+    if (own && map) { map.removeLayer(own); own = null; }
+    if (accuracyRing && map) { map.removeLayer(accuracyRing); accuracyRing = null; }
+  }
+  $('rulesSummary').textContent = result.config.minutes + ' MIN / Ø ' + result.config.diameter + ' M / PING ' + result.config.ping + ' S / RITIRO ' + result.config.shrink + ' M/S';
+  drawMap(); renderPlayers(); refreshClock();
+}
+function initMap() {
+  if (map || !window.L) return;
+  map = L.map('map', { zoomControl: true }).setView([41.9, 12.5], 13);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap contributors'
+  }).on('tileerror', () => { $('mapStatus').textContent = 'Tessere non disponibili: controlla Internet prima di muoverti.'; })
+    .on('load', () => { $('mapStatus').textContent = 'Mappa online · © OpenStreetMap contributors'; }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+}
+function drawMap() {
+  initMap();
+  if (!map) { notice('Mappa non disponibile. Riavvia l’app e controlla Android System WebView.'); return; }
+  layer.clearLayers(); zone = null;
+  if (state.center) {
+    zone = L.circle([state.center.lat, state.center.lng], { radius: currentRadius(), color: '#8ab900', fillColor: '#cfff42', fillOpacity: .08, weight: 3 }).addTo(layer);
+    if (!zoneFitted) { fitZone(); zoneFitted = true; }
+  }
+  state.players.filter(p => !p.self && p.location).forEach(p => {
+    const old = state.serverTime - p.location.at > state.config.ping * 2000 + 10000 || !p.online;
+    const popup = document.createElement('div');
+    popup.textContent = p.name + ' · ' + (p.role === 'prey' ? 'PREDA' : 'CACCIATORE') + ' · ping ' + age(p.location.at) + ' fa · ±' + Math.round(p.location.accuracy) + ' m';
+    L.marker([p.location.lat, p.location.lng], { icon: L.divIcon({ className: '',
+      html: '<div class="dot' + (old ? ' stale' : '') + '" style="background:' + (p.role === 'prey' ? '#b1df22' : '#ff507a') + '"></div>', iconSize: [20, 20] }) }).bindPopup(popup).addTo(layer);
+  });
+  paintSelf();
+}
+function currentElapsed() { return state ? Math.max(0, (performance.now() - receivedAt) / 1000) : 0; }
+function currentRadius() { return !state ? 0 : Math.max(25, state.radius - (state.started && !state.ended ? currentElapsed() * state.config.shrink : 0)); }
+function age(timestamp) {
+  const seconds = Math.max(0, Math.floor((state.serverTime - timestamp) / 1000 + currentElapsed()));
+  return seconds < 60 ? seconds + ' s' : Math.floor(seconds / 60) + ' min';
+}
+function renderPlayers() {
+  if (!state) return;
+  $('players').textContent = '';
+  state.players.forEach(p => {
+    const row = document.createElement('div'); row.className = 'player';
+    const main = document.createElement('div'); main.className = 'player-main';
+    const mark = document.createElement('div'); mark.className = 'player-mark' + (p.role === 'hunter' ? ' hunter' : ''); mark.textContent = p.role === 'hunter' ? '⌖' : '◈';
+    const text = document.createElement('div'); const name = document.createElement('div'); name.className = 'player-name'; name.textContent = p.name;
+    const badge = document.createElement('small'); badge.textContent = (p.self ? 'TU ' : '') + (p.host ? 'HOST' : ''); name.append(badge);
+    const sub = document.createElement('div'); sub.className = 'player-sub'; sub.textContent = (p.role === 'hunter' ? 'CACCIATORE' : 'PREDA') + (p.online ? '' : ' · OFFLINE');
+    text.append(name, sub); main.append(mark, text);
+    const position = document.createElement('div'); position.className = 'player-age';
+    position.classList.toggle('old', !p.online || !!p.location && state.serverTime - p.location.at + currentElapsed() * 1000 > state.config.ping * 2000 + 10000);
+    position.textContent = p.location ? age(p.location.at) + ' fa' : 'NO GPS';
+    const distance = document.createElement('small');
+    distance.textContent = p.location && fix && map && !p.self ? Math.round(map.distance([fix.lat, fix.lng], [p.location.lat, p.location.lng])) + ' m · in linea d’aria' : p.location ? '±' + Math.round(p.location.accuracy) + ' m' : 'In attesa di un fix';
+    position.append(distance); row.append(main, position); $('players').append(row);
+  });
+}
+function paintSelf() {
+  if (!map || !fix || !state || state.ended) return;
+  const point = [fix.lat, fix.lng];
+  if (own) own.setLatLng(point);
+  else own = L.circleMarker(point, { radius: 7, color: '#fff', fillColor: '#179bd0', fillOpacity: 1, weight: 3 }).addTo(map);
+  if (accuracyRing) accuracyRing.setLatLng(point).setRadius(fix.accuracy);
+  else accuracyRing = L.circle(point, { radius: fix.accuracy, color: '#1599cc', fillColor: '#49caff', fillOpacity: .08, weight: 1 }).addTo(map);
+  if (!zoneFitted && !state.center) { map.setView(point, 15); zoneFitted = true; }
+}
+function onGps(lat, lng, accuracy) {
+  if (!state || state.ended) return;
+  fix = { lat, lng, accuracy }; gpsAt = performance.now();
+  paintSelf(); refreshClock();
+}
+function recenter() {
+  if (!fix || performance.now() - gpsAt > 15000) return notice('Attendi una posizione GPS recente prima di ricentrarti.');
+  map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), 16));
+}
+function fitZone() { if (map && zone) map.fitBounds(zone.getBounds(), { padding: [18, 18], maxZoom: 17 }); else notice('La zona viene creata quando parte la partita.'); }
+function refreshClock() {
+  if (!state) return;
+  const elapsed = currentElapsed();
+  const remaining = state.ended ? 0 : Math.max(0, state.remaining - (state.started ? elapsed : 0));
+  $('phase').textContent = state.ended ? 'TERMINATA' : state.started ? 'TEMPO RESIDUO' : 'DURATA PARTITA';
+  $('clock').textContent = Math.floor(remaining / 60).toString().padStart(2, '0') + ':' + Math.floor(remaining % 60).toString().padStart(2, '0');
+  $('radius').textContent = Math.round(currentRadius()) + ' m';
+  $('nextPing').textContent = !state.started || state.ended ? '—' : Math.max(0, Math.ceil(state.nextPingIn - elapsed)) + ' s';
+  const stale = elapsed > 15;
+  $('connection').classList.toggle('stale', stale);
+  $('connectionText').textContent = state.ended ? 'Partita conclusa · nessuna posizione condivisa' : stale ? 'Connessione in ritardo · ping non aggiornati' : 'Collegato · GPS in background attivo';
+  const gpsFresh = fix && performance.now() - gpsAt < 15000;
+  $('gps').textContent = state.ended ? 'GPS FERMO' : gpsFresh ? 'GPS ±' + Math.round(fix.accuracy) + ' M' : 'GPS IN ATTESA';
+  if (own) own.setStyle({ opacity: gpsFresh ? 1 : .4, fillOpacity: gpsFresh ? 1 : .3 });
+  if (zone) zone.setRadius(currentRadius());
+  const outside = gpsFresh && state.center && state.started && !state.ended && map && map.distance([fix.lat, fix.lng], [state.center.lat, state.center.lng]) > currentRadius();
+  $('warning').classList.toggle('hidden', !outside);
+  if (outside) $('warning').textContent = 'FUORI ZONA · Il confine è virtuale. Rientra solo lungo un percorso sicuro.';
+  if (busy && performance.now() - requestAt > 20000) setBusy(false);
+}
+function trackingStopped(message) {
+  accepting = false; auth = null; state = null; fix = null; setBusy(false);
+  if (map) { layer.clearLayers(); if (own) map.removeLayer(own); if (accuracyRing) map.removeLayer(accuracyRing); own = null; accuracyRing = null; }
+  closeDialog(); show('home'); if (message) notice(message);
+}
+function trackingEnded() { refreshClock(); }
+function nativeResume() { if (auth && !state.ended) trackingStopped('Il servizio GPS è stato interrotto. Entra di nuovo in una lobby.'); }
+function ask(action) {
+  if (!auth) return;
+  pendingAction = action; dialogFocus = document.activeElement;
+  $('dialogTitle').textContent = action === 'end' ? 'Chiudere la caccia?' : 'Lasciare il campo?';
+  $('dialogText').textContent = action === 'end' ? 'La partita terminerà per tutti. Il GPS verrà fermato su ogni telefono connesso.' : 'La tua posizione non sarà più condivisa. Dopo l’avvio non potrai rientrare nella stessa partita.';
+  $('dialog').classList.remove('hidden'); $('dialogConfirm').focus();
+}
+function closeDialog() { $('dialog').classList.add('hidden'); pendingAction = null; if (dialogFocus) dialogFocus.focus(); }
+function confirmAction() {
+  const action = pendingAction; closeDialog();
+  if (action === 'end') call('end');
+  if (action === 'leave') {
+    Android.stopTracking(); // Native service owns the leave request and cancels its GPS first.
+    trackingStopped('Condivisione interrotta. Hai lasciato la lobby.');
+  }
+}
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeDialog();
+  if (event.key === 'Tab' && !$('dialog').classList.contains('hidden')) {
+    const buttons = $('dialog').querySelectorAll('button');
+    if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons[1].focus(); }
+    if (!event.shiftKey && document.activeElement === buttons[1]) { event.preventDefault(); buttons[0].focus(); }
+  }
+});
+['minutes', 'diameter', 'ping', 'shrink'].forEach(id => $(id).addEventListener('input', () => {
+  document.querySelectorAll('.preset').forEach(el => { el.classList.remove('selected'); el.setAttribute('aria-pressed', 'false'); });
+  $('presetSummary').textContent = 'Regole personalizzate · controlla i valori prima di avviare.';
+}));
+setInterval(() => { if (!document.hidden && state) { refreshClock(); renderPlayers(); } }, 1000);
+$('server').value = Android.savedServer();
