@@ -33,7 +33,11 @@ function saveProfile() {
 function connecting() { $('connect').disabled = true; $('connectLabel').textContent = 'VERIFICA SERVER…'; }
 function connectionFailed(message) { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; notice(message); }
 function connected() { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; show('home'); $('message').classList.add('hidden'); if(val('code').indexOf('nogar://join#')===0)mode('join'); Android.requestGps(); }
-function prefillInvite(invite, relay) { $('server').value=relay; $('code').value=invite; show('setup'); notice('Invito importato. Premi Connetti, scegli il nickname ed entra nella partita.'); }
+function prefillInvite(invite, relay) {
+  $('server').value=relay; $('firebaseKey').value='';
+  try { const url=new URL(relay); if((url.hostname.endsWith('.firebaseio.com')||url.hostname.endsWith('.firebasedatabase.app'))&&url.pathname.indexOf('/nogar-client/')===0){$('server').value=url.origin; $('firebaseKey').value=url.pathname.slice('/nogar-client/'.length);} } catch(ignored) {}
+  $('code').value=invite; show('setup'); notice('Invito importato. Premi Connetti, scegli il nickname ed entra nella partita.');
+}
 function mode(value) {
   const create = value === 'create';
   $('createPanel').classList.toggle('hidden', !create); $('joinPanel').classList.toggle('hidden', create);
@@ -269,6 +273,7 @@ document.addEventListener('keydown', event => {
 }));
 setInterval(() => { if (!document.hidden && state) { refreshClock(); renderPlayers(); } }, 1000);
 $('server').value = Android.savedServer();
+if(typeof Android.savedFirebaseKey==='function')$('firebaseKey').value=Android.savedFirebaseKey();
 
 try {
   const profile = JSON.parse(localStorage.getItem('nogar-profile') || 'null');

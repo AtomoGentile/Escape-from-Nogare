@@ -134,3 +134,12 @@ test('invito privato: importa solo sul telefono e richiede l’invito completo',
   el('name').value='Ghost';el('code').value='123456';w.enter('join');assert.equal(calls.length,0);
   el('code').value=invitation;w.enter('join');assert.equal(calls[0][1].invite,invitation);
 });
+
+test('invito Firebase precompila URL e chiave API pubblica senza avviare traffico', t => {
+  const {w,calls,el}=page(t);
+  const key='fake-public-project-key-12345';
+  w.prefillInvite(invitation,'https://nogar.example.firebasedatabase.app/nogar-client/'+key);
+  assert.equal(el('server').value,'https://nogar.example.firebasedatabase.app');
+  assert.equal(el('firebaseKey').value,key);
+  assert.equal(calls.length,0);
+});

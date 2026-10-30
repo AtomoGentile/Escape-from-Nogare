@@ -6,6 +6,7 @@ import org.json.*;
 
 final class ApiClient {
     static void health(String endpoint) throws Exception {
+        if(FirebaseRelay.isEndpoint(endpoint)){FirebaseRelay.client(endpoint).health();return;}
         HttpURLConnection c = (HttpURLConnection) new URL(endpoint + "/health").openConnection();
         try {
             c.setInstanceFollowRedirects(false);
@@ -26,6 +27,7 @@ final class ApiClient {
     }
 
     static JSONObject post(String endpoint, JSONObject body) throws Exception {
+        if(FirebaseRelay.isEndpoint(endpoint))return FirebaseRelay.client(endpoint).request(body);
         HttpURLConnection c = (HttpURLConnection) new URL(endpoint + "/api").openConnection();
         try {
             c.setInstanceFollowRedirects(false);

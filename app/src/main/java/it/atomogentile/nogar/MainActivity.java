@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
         }
         web.setBackgroundColor(0xff090d18);
         web.getSettings().setJavaScriptEnabled(true); // Bundled UI only; remote navigation is blocked.
-        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.7.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
+        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.8.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);
         web.getSettings().setAllowContentAccess(false);
@@ -75,18 +75,27 @@ public class MainActivity extends Activity {
         }
     }
 
-    @JavascriptInterface public String savedServer() { return getPreferences(0).getString("server", ""); }
+    @JavascriptInterface public String savedServer() {
+        String saved=getPreferences(0).getString("server", "");
+        if(FirebaseRelay.isEndpoint(saved)){try{return "https://"+new URI(saved).getHost();}catch(Exception ignored){}}
+        return saved;
+    }
+    @JavascriptInterface public String savedFirebaseKey(){
+        String saved=getPreferences(0).getString("server", "");
+        if(FirebaseRelay.isEndpoint(saved)){try{return new URI(saved).getPath().substring("/nogar-client/".length());}catch(Exception ignored){}}
+        return "";
+    }
 
-    @JavascriptInterface public void connect(String url) {
+    @JavascriptInterface public void connect(String url,String publicApiKey) {
         if (TrackingService.current != null) { js("notice('Esci dalla lobby prima di cambiare server')"); return; }
         final String target;
         try {
             URI u = new URI(url);
             if (!"https".equals(u.getScheme()) || u.getHost() == null || u.getUserInfo() != null
                     || u.getQuery() != null || u.getFragment() != null) throw new Exception();
-            target = url.replaceAll("/+$", "");
+            target = FirebaseRelay.firebaseHost(u.getHost()) ? FirebaseRelay.endpoint(url,publicApiKey.trim()) : url.replaceAll("/+$", "");
         } catch (Exception e) {
-            js("connectionFailed('Serve l’indirizzo HTTPS del server, senza /health o /api')"); return;
+            js("connectionFailed('Controlla URL HTTPS del database Firebase e chiave API pubblica, oppure l’indirizzo del tuo relay')"); return;
         }
         if (!connecting.compareAndSet(false, true)) return;
         js("connecting()");
@@ -97,7 +106,7 @@ public class MainActivity extends Activity {
                 getPreferences(0).edit().putString("server", endpoint).apply();
                 js("connected()");
             } catch (Exception e) {
-                js("connectionFailed('Serve il servizio nogar-relay aggiornato. Controlla /health; se il servizio era in pausa, attendi e riprova.')");
+                js("connectionFailed('Connessione non riuscita. Per Firebase controlla URL, chiave API, accesso anonimo e regole; per un relay verifica /health.')");
             } finally { connecting.set(false); }
         });
     }
@@ -106,8 +115,8 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
-                    "https://github.com/AtomoGentile/Escape-from-Nogare/blob/main/docs/SERVER.md")));
-            } catch (ActivityNotFoundException e) { js("notice('Apri docs/SERVER.md nel repository GitHub Escape-from-Nogare')"); }
+                    "https://github.com/AtomoGentile/Escape-from-Nogare/blob/main/docs/FIREBASE.md")));
+            } catch (ActivityNotFoundException e) { js("notice('Apri docs/FIREBASE.md nel repository GitHub Escape-from-Nogare')"); }
         });
     }
 

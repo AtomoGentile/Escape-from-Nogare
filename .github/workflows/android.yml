@@ -54,6 +54,23 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Server and interface tests
         run: npm test
+      - name: Firebase emulator security and REST integration
+        shell: bash
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          set +e
+          npm run test:firebase:ci > firebase-emulator-ci.log 2>&1
+          result=$?
+          cat firebase-emulator-ci.log
+          if [ "$result" -ne 0 ]; then
+            python - <<'PYERROR'
+          from pathlib import Path
+          text = Path('firebase-emulator-ci.log').read_text(errors='replace')[-10000:]
+          print('::error title=Firebase emulator tests::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PYERROR
+          fi
+          exit "$result"
       - name: Build Android APK
         run: ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
       - name: Phone authority and encryption tests
@@ -77,4 +94,5 @@ jobs:
           path: |
             app/build/reports/
             build/reports/
+            firebase-emulator-ci.log
           if-no-files-found: ignore

@@ -2,6 +2,10 @@
 
 **Il telefono organizzatore gestisce la partita.** Serve comunque un piccolo servizio HTTPS per mettere in contatto telefoni dietro CGNAT e inoltrare messaggi cifrati quando il collegamento diretto non riesce. Non è un server delle posizioni: non riceve la chiave dell’invito e non esegue regole del gioco.
 
+## Con un account Google, senza PC
+
+Usa la [guida Firebase](FIREBASE.md): un progetto Spark con Auth anonimo e Realtime Database puo sostituire il relay Node, mantenendo i messaggi cifrati. Servono una configurazione iniziale e il rispetto delle quote gratuite.
+
 ## Sul proprio PC Windows 11, senza account di hosting
 
 Segui la [guida Windows a casa](WINDOWS-HOME.md): Node esegue il relay e Caddy pubblica HTTPS. Servono IP WAN pubblico e TCP 80/443 inoltrate al PC; DNS e certificato vengono ottenuti automaticamente senza account di hosting. Il PC deve restare acceso.

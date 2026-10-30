@@ -1,10 +1,16 @@
-# NOGAR // HUNT · Android 9+
+# NOGAR // HUNT · Android 9+ · v0.8
 
 Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.7 il telefono organizzatore gestisce la partita.** Il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
 
+## Collegamento con Google, senza PC
+
+La v0.8 aggiunge Firebase Realtime Database usando un progetto nel tuo account Google. Non richiede un account di hosting diverso, un PC acceso o porte aperte. Rimane necessaria una configurazione iniziale del progetto, Auth anonimo e regole: [guida Firebase](docs/FIREBASE.md). Per il piano gratuito mantieni Spark e controlla le quote correnti nella console. Non vengono attivati servizi a pagamento.
+
+Il telefono continua a gestire le regole e le posizioni rimangono cifrate. L'app usa due campi: URL database e chiave API **pubblica**; gli inviti completi precompilano entrambi. I giocatori non devono fare login Google. Il precedente relay Node/Windows resta disponibile come alternativa.
+
 ## Giocare
 
-1. Collega nell’app un servizio HTTPS `nogar-relay`. [Guida per ottenere l’indirizzo](docs/SERVER.md). Tutti usano la stessa versione dell’app.
+1. Collega nell’app Firebase come sopra oppure un servizio HTTPS `nogar-relay`. [Guida per ottenere l’indirizzo](docs/SERVER.md). Tutti usano la stessa versione dell’app.
 2. L’organizzatore sceglie nickname, squadra e regole, poi **Crea lobby**. Il suo telefono deve rimanere acceso e connesso; GPS e connessioni sono nel servizio Android in background con notifica persistente.
 3. Tocca il pulsante di copia accanto al codice: copia l’**invito privato completo** `nogar://join#…`. Condividilo solo con i partecipanti. Il codice a sei cifre identifica la lobby, ma non basta per entrare perché non contiene la chiave crittografica.
 4. Gli altri aprono l’invito con Nogar oppure lo copiano e toccano **Ho un invito · Incolla**. L’app propone il servizio dell’invito senza contattarlo automaticamente. Premono Connetti, scelgono nickname e squadra ed entrano.
@@ -27,7 +33,8 @@ Tutti i parametri sono personalizzabili. Il raggio minimo può variare da 1 m al
 ## Cosa passa dai servizi esterni
 
 - **Diretto:** WebRTC DataChannel fra ciascun partecipante e l’organizzatore. Non vengono create tracce audio/video né richiesti microfono o fotocamera.
-- **Collegamento e alternativa:** `server/relay.mjs` trasporta la segnalazione WebRTC e, quando il diretto non risponde, gli stessi messaggi di gioco cifrati via HTTPS. Non occorre un server TURN. Il relay vede IP, identificatori, tempi, dimensioni e pacchetti cifrati; conserva code in RAM, non uno storico delle posizioni. Il servizio rimane contattato per disponibilità e segnalazione anche quando il canale di gioco è diretto.
+- **Firebase opzionale:** Auth anonimo e Realtime Database sostituiscono il relay. Le regole in `firebase/database.rules.json` limitano accessi, mittente, destinatario e formato opaco. Il progetto riceve chiave API pubblica e metadati, non la chiave AES. Nessuna funzione cloud. Quote, presenza e pulizia dei dati sono descritte nella guida; i dati cifrati rimasti dopo un arresto non vengono eliminati automaticamente dal solo passaggio del tempo.
+- **Collegamento e alternativa Node:** `server/relay.mjs` trasporta la segnalazione WebRTC e, quando il diretto non risponde, gli stessi messaggi di gioco cifrati via HTTPS. Non occorre un server TURN. Il relay vede IP, identificatori, tempi, dimensioni e pacchetti cifrati; conserva code in RAM, non uno storico delle posizioni. Il servizio rimane contattato per disponibilità e segnalazione anche quando il canale di gioco è diretto.
 - **Cifratura:** AES-256-GCM con nonce casuale e AAD legata a lobby, mittente e destinatario. La chiave casuale resta nell’invito sui telefoni e non viene inviata al relay. Anche SDP/candidati ICE sono cifrati. La finestra di sequenza rifiuta replay e consente riordinamento limitato. Le richieste ritentate usano lo stesso identificatore e l’organizzatore conserva risposte limitate per evitare di rieseguire i comandi.
 - **STUN:** `stun.cloudflare.com:3478` aiuta a trovare il collegamento diretto. Riceve informazioni di rete, non le coordinate del gioco. Per infrastruttura propria, sostituire l’URL STUN in `PhoneSession.java`.
 - **Mappa:** le tessere arrivano da OpenStreetMap via HTTPS, senza chiave Google Maps. Il fornitore vede IP e area delle tessere richieste, non i marker aggiunti localmente. Mappe offline non sono implementate. Rispettare la [policy delle tessere](https://operations.osmfoundation.org/policies/tiles/) e scegliere un provider appropriato per traffico pubblico elevato.
@@ -67,6 +74,9 @@ WebRTC nativo è fissato a `io.github.webrtc-sdk:android:150.7871.04` (min API 2
 Actions esegue test Node, build APK, test JVM dell’autorità/cifratura/relay reale, lint e verifica firma/dimensioni; carica APK e report. La configurazione è nel repository, l’esito remoto richiede accesso ai log di GitHub.
 
 ## Stato delle verifiche e limiti
+
+L’integrazione Firebase include test delle regole e del client REST Java con Auth/Database Emulator in Actions. La rete locale di questo ambiente blocca il download ufficiale dell’emulatore; l’esito remoto viene verificato prima della consegna. Non e stato configurato alcun progetto Firebase reale.
+
 
 - Test Node del precedente motore, relay opaco, validazione, autorizzazioni e DOM dell’interfaccia.
 - Test JVM di regole sul telefono, raggio minimo, ping, ruoli, uscita, AES-GCM, manomissione, mittente/lobby sbagliati, inviti e replay.

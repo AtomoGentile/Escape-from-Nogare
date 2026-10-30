@@ -1,1 +1,19 @@
-{"name":"nogar-validation","private":true,"version":"0.3.0","scripts":{"test":"node --test server/server.test.mjs server/relay.test.mjs tests/ui.test.cjs"},"devDependencies":{"jsdom":"26.1.0"},"engines":{"node":">=22"}}
+{
+  "name": "nogar-validation",
+  "private": true,
+  "version": "0.3.0",
+  "scripts": {
+    "test": "node --test server/server.test.mjs server/relay.test.mjs tests/ui.test.cjs",
+    "test:firebase": "node --test tests/firebase/rules.test.mjs",
+    "test:firebase:ci": "firebase emulators:exec --only auth,database --project demo-nogar \"npm run test:firebase && ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest && cp -R app/build/test-results/testDebugUnitTest app/build/reports/firebase-emulator-tests\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
+    "firebase": "12.11.0",
+    "firebase-tools": "15.34.2",
+    "jsdom": "26.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

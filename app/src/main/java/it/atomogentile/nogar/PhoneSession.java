@@ -66,7 +66,8 @@ final class PhoneSession implements AutoCloseable {
         if(game!=null)result=game.handle("host",body);
         else {
             String id=UUID.randomUUID().toString();CompletableFuture<JSONObject> future=new CompletableFuture<>();pending.put(id,future);
-            JSONObject message=new JSONObject().put("kind","request").put("id",id).put("body",body);
+            JSONObject remoteBody=new JSONObject(body.toString());remoteBody.remove("invite");
+            JSONObject message=new JSONObject().put("kind","request").put("id",id).put("body",remoteBody);
             try{
                 send("host",message,false);
                 try{result=future.get(8,TimeUnit.SECONDS);}catch(TimeoutException timeout){send("host",message,true);result=future.get(10,TimeUnit.SECONDS);}

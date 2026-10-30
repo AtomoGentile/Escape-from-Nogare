@@ -1,0 +1,77 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "nogar": {
+      "v1": {
+        "ping": {
+          ".read": "auth != null",
+          ".write": false
+        },
+        "rooms": {
+          "$room": {
+            ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('owner').val() === auth.uid && newData.child('members').child(auth.uid).child('proof').val() === newData.child('proof').val()) || (data.child('owner').val() === auth.uid && !newData.exists()))",
+            ".validate": "newData.hasChildren(['owner', 'proof', 'createdAt', 'pulse', 'members'])",
+            "owner": {
+              ".read": "auth != null && (data.val() === auth.uid || data.parent().child('members').child(auth.uid).exists())",
+              ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val())"
+            },
+            "proof": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}$/) && (!data.exists() || newData.val() === data.val())"
+            },
+            "createdAt": {
+              ".read": "auth != null && data.parent().child('members').child(auth.uid).exists()",
+              ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() >= now - 60000) || newData.val() === data.val())"
+            },
+            "pulse": {
+              ".read": "auth != null && data.parent().child('members').child(auth.uid).exists()",
+              ".write": "auth != null && data.parent().child('owner').val() === auth.uid",
+              ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 60000"
+            },
+            "members": {
+              ".read": "auth != null && data.parent().child('owner').val() === auth.uid",
+              "$uid": {
+                ".read": "auth != null && auth.uid === $uid",
+                ".write": "auth != null && auth.uid === $uid && ((!newData.exists() && data.exists()) || (!data.exists() && newData.child('proof').val() === data.parent().parent().child('proof').val() && now < data.parent().parent().child('createdAt').val() + 10800000 && now < data.parent().parent().child('pulse').val() + 120000))",
+                ".validate": "newData.hasChildren(['proof', 'joinedAt'])",
+                "proof": {
+                  ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}$/)"
+                },
+                "joinedAt": {
+                  ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 60000"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            },
+            "inbox": {
+              "$to": {
+                ".read": "auth != null && auth.uid === $to && data.parent().parent().child('members').child(auth.uid).exists() && now < data.parent().parent().child('createdAt').val() + 10800000 && now < data.parent().parent().child('pulse').val() + 120000",
+                "$from": {
+                  "$id": {
+                    ".write": "auth != null && root.child('nogar/v1/rooms').child($room).child('members').child(auth.uid).exists() && ((auth.uid === $to && !newData.exists()) || (auth.uid === $from && $from !== $to && newData.exists() && root.child('nogar/v1/rooms').child($room).child('members').child($to).exists() && ($from === root.child('nogar/v1/rooms').child($room).child('owner').val() || $to === root.child('nogar/v1/rooms').child($room).child('owner').val()) && now < root.child('nogar/v1/rooms').child($room).child('createdAt').val() + 10800000 && now < root.child('nogar/v1/rooms').child($room).child('pulse').val() + 120000 && (!data.exists() || newData.child('packet').val() === data.child('packet').val())))",
+                    ".validate": "newData.hasChildren(['packet', 'createdAt'])",
+                    "packet": {
+                      ".validate": "newData.isString() && newData.val().length <= 90000 && newData.val().matches(/^[A-Za-z0-9_-]+$/)"
+                    },
+                    "createdAt": {
+                      ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 60000"
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                },
+                ".write": "auth != null && auth.uid === $to && !newData.exists()"
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      }
+    }
+  }
+}
