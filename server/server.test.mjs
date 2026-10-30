@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from './server.mjs';
 const config = { minutes: 20, diameter: 1200, ping: 30, shrink: .4 };
-async function fixture(t) {
+async function fixture(t, overrides = {}) {
   let now = 1700000000000;
   const server = createServer({ clock: () => now });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -13,7 +13,7 @@ async function fixture(t) {
     return { status: r.status, ...await r.json() };
   }
   const auth = r => ({ code: r.code, token: r.token });
-  const host = auth(await api({ action: 'create', name: 'Host', role: 'hunter', config }));
+  const host = auth(await api({ action: 'create', name: 'Host', role: 'hunter', config: { ...config, ...overrides } }));
   const prey = auth(await api({ action: 'join', code: host.code, name: 'Ghost', role: 'prey' }));
   const gps = (who = host, extra = {}) => api({ ...who, action: 'location', location: { lat: 45, lng: 12, accuracy: 4, ...extra } });
   return { api, host, prey, gps, advance: ms => { now += ms; } };
@@ -24,7 +24,7 @@ test('ping condivisi: prima scadenza, throttling e riservatezza dei token', asyn
   assert.equal((await f.api({ ...f.host, action: 'start' })).status, 400);
   await f.gps(); await f.gps(f.prey);
   const start = await f.api({ ...f.host, action: 'start' });
-  assert.equal(start.center.lat, 45); assert.equal(start.nextPingIn, 30);
+  assert.equal(start.config.minRadius, 25); assert.equal(start.center.lat, 45); assert.equal(start.nextPingIn, 30);
   let r = await f.gps(f.prey, { lat: 45.1, extra: 'must not leak' });
   assert.equal(r.players.find(p => p.self).location.lat, 45);
   f.advance(30000); r = await f.gps(f.prey, { lat: 45.1, extra: 'must not leak' });
@@ -91,4 +91,27 @@ test('health check pubblico identifica il server senza esporre lobby o coordinat
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.deepEqual(await response.json(), { ok: true, service: 'nogar', protocol: 1 });
+});
+
+test('il raggio minimo scelto viene condiviso e ferma il ritiro prima della fine', async t => {
+  const f = await fixture(t, { minRadius: 200 });
+  await f.gps(); await f.api({ ...f.host, action: 'start' });
+  f.advance(1100000);
+  const result = await f.api({ ...f.prey, action: 'poll' });
+  assert.equal(result.config.minRadius, 200);
+  assert.equal(result.radius, 200);
+  assert.equal(result.remaining, 100);
+  assert.equal(result.ended, null);
+});
+test('limiti del raggio minimo: positivo e non oltre metà diametro', async t => {
+  const f = await fixture(t);
+  for (const minRadius of [0, -1, 601, null, '25']) {
+    const result = await f.api({ action: 'create', name: 'Invalid', role: 'hunter', config: { ...config, minRadius } });
+    assert.equal(result.status, 400, 'must reject ' + minRadius);
+  }
+  for (const minRadius of [1, 600]) {
+    const result = await f.api({ action: 'create', name: 'Valid', role: 'hunter', config: { ...config, minRadius } });
+    assert.equal(result.status, 200);
+    assert.equal(result.config.minRadius, minRadius);
+  }
 });

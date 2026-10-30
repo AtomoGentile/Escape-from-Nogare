@@ -4,8 +4,8 @@ const val = id => $(id).value.trim();
 let accepting = false, state = null, auth = null, fix = null;
 let map = null, layer = null, own = null, accuracyRing = null, zone = null;
 let busy = false, receivedAt = 0, requestAt = 0, gpsAt = 0, zoneFitted = false, selfCentered = false, activeCode = null;
-let pendingAction = null, dialogFocus = null;
-const presets = { sprint: [10, 600, 15, .4], classic: [20, 1200, 30, .4], explorer: [30, 2000, 45, .5] };
+let pendingAction = null, dialogFocus = null, requestedMinRadius = null;
+const presets = { sprint: [10, 600, 15, .4, 25], classic: [20, 1200, 30, .4, 25], explorer: [30, 2000, 45, .5, 25] };
 
 function show(id) {
   ['setup', 'home', 'game'].forEach(x => $(x).classList.toggle('hidden', x !== id));
@@ -41,11 +41,12 @@ function mode(value) {
   });
 }
 function preset(key, button) {
-  ['minutes', 'diameter', 'ping', 'shrink'].forEach((id, i) => { $(id).value = presets[key][i]; });
+  ['minutes', 'diameter', 'ping', 'shrink', 'minRadius'].forEach((id, i) => { $(id).value = presets[key][i]; });
   document.querySelectorAll('.preset').forEach(el => {
     el.classList.toggle('selected', el === button); el.setAttribute('aria-pressed', String(el === button));
   });
-  $('presetSummary').textContent = 'Ping ogni ' + presets[key][2] + ' s · ritiro del raggio ' + String(presets[key][3]).replace('.', ',') + ' m/s';
+  $('presetSummary').textContent = 'Ping ogni ' + presets[key][2] + ' s · ritiro del raggio ' + String(presets[key][3]).replace('.', ',') + ' m/s · raggio minimo ' + presets[key][4] + ' m';
+  $('minRadius').max = Number(val('diameter')) / 2;
 }
 function setBusy(value) {
   busy = value;
@@ -56,13 +57,17 @@ function enter(action) {
   if (!val('name')) return notice('Scegli un nickname prima di entrare.');
   if (action === 'join' && !/^\d{6}$/.test(val('code'))) return notice('Inserisci il codice a 6 cifre della lobby.');
   const config = {};
-  const limits = { minutes: [2, 120], diameter: [100, 10000], ping: [5, 300], shrink: [0, 5] };
+  const limits = { minutes: [2, 120], diameter: [100, 10000], ping: [5, 300], shrink: [0, 5], minRadius: [1, 5000] };
   for (const key of Object.keys(limits)) {
     config[key] = Number(val(key));
     if (action === 'create' && (!val(key) || !Number.isFinite(config[key]) || config[key] < limits[key][0] || config[key] > limits[key][1])) {
-      $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro 100–10000 m, ping 5–300 s, ritiro 0–5 m/s.');
+      $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro 100–10000 m, ping 5–300 s, ritiro 0–5 m/s, raggio minimo da 1 m.');
     }
   }
+  if (action === 'create' && config.minRadius > config.diameter / 2) {
+    $('minRadius').focus(); return notice('Il raggio minimo non può superare metà del diametro iniziale (' + config.diameter / 2 + ' m).');
+  }
+  requestedMinRadius = action === 'create' ? config.minRadius : null;
   saveProfile();
   accepting = true; state = null; auth = null;
   send({ action, name: val('name'), role: val('role'), code: val('code'), config });
@@ -87,6 +92,13 @@ function receive(result) {
     return;
   }
   if (result.left) return;
+  if (requestedMinRadius !== null && requestedMinRadius !== 25 && result.config.minRadius === undefined) {
+    accepting = false; requestedMinRadius = null;
+    Android.api(JSON.stringify({ code: result.code, token: result.token, action: 'leave' }));
+    notice('Aggiorna il server: questa versione non supporta ancora il raggio minimo personalizzato. La lobby non è stata mantenuta.');
+    return;
+  }
+  requestedMinRadius = null;
   if (auth && (auth.code !== result.code || auth.token !== result.token)) return;
   if (state && result.serverTime < state.serverTime) return;
   if (activeCode !== result.code) {
@@ -122,7 +134,7 @@ function receive(result) {
     if (own && map) { map.removeLayer(own); own = null; }
     if (accuracyRing && map) { map.removeLayer(accuracyRing); accuracyRing = null; }
   }
-  $('rulesSummary').textContent = result.config.minutes + ' MIN / Ø ' + result.config.diameter + ' M / PING ' + result.config.ping + ' S / RITIRO ' + result.config.shrink + ' M/S';
+  $('rulesSummary').textContent = result.config.minutes + ' MIN / Ø ' + result.config.diameter + ' M / PING ' + result.config.ping + ' S / RITIRO ' + result.config.shrink + ' M/S / MIN ' + (result.config.minRadius === undefined ? 25 : result.config.minRadius) + ' M';
   drawMap(); renderPlayers(); refreshClock();
 }
 function initMap() {
@@ -155,7 +167,7 @@ function drawMap() {
   paintSelf();
 }
 function currentElapsed() { return state ? Math.max(0, (performance.now() - receivedAt) / 1000) : 0; }
-function currentRadius() { return !state ? 0 : Math.max(25, state.radius - (state.started && !state.ended ? currentElapsed() * state.config.shrink : 0)); }
+function currentRadius() { return !state ? 0 : Math.max(state.config.minRadius === undefined ? 25 : state.config.minRadius, state.radius - (state.started && !state.ended ? currentElapsed() * state.config.shrink : 0)); }
 function age(timestamp) {
   const seconds = Math.max(0, Math.floor((state.serverTime - timestamp) / 1000 + currentElapsed()));
   return seconds < 60 ? seconds + ' s' : Math.floor(seconds / 60) + ' min';
@@ -249,8 +261,9 @@ document.addEventListener('keydown', event => {
     if (!event.shiftKey && document.activeElement === buttons[1]) { event.preventDefault(); buttons[0].focus(); }
   }
 });
-['minutes', 'diameter', 'ping', 'shrink'].forEach(id => $(id).addEventListener('input', () => {
+['minutes', 'diameter', 'ping', 'shrink', 'minRadius'].forEach(id => $(id).addEventListener('input', () => {
   document.querySelectorAll('.preset').forEach(el => { el.classList.remove('selected'); el.setAttribute('aria-pressed', 'false'); });
+  $('minRadius').max = Number(val('diameter')) / 2;
   $('presetSummary').textContent = 'Regole personalizzate · controlla i valori prima di avviare.';
 }));
 setInterval(() => { if (!document.hidden && state) { refreshClock(); renderPlayers(); } }, 1000);

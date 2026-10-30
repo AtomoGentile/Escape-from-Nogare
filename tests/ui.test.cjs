@@ -95,3 +95,31 @@ test('verifica server: bottone occupato e ripristino dopo errore o successo', t 
   assert.equal(el('connect').disabled, false);
   assert.equal(el('home').classList.contains('hidden'), false);
 });
+
+test('raggio minimo: validazione del diametro, invio e reset ai preset', t => {
+  const { w, calls, el } = page(t);
+  el('name').value = 'Ghost'; el('minRadius').value = '601';
+  w.enter('create'); assert.equal(calls.length, 0);
+  assert.match(el('message').textContent, /metà del diametro/);
+  el('minRadius').value = '75'; w.enter('create');
+  assert.equal(calls.find(c => c[0] === 'api')[1].config.minRadius, 75);
+  w.preset('sprint', w.document.querySelector('.preset'));
+  assert.equal(el('minRadius').value, '25'); assert.equal(el('minRadius').max, '300');
+});
+test('la mappa e il riepilogo rispettano il minimo della lobby', t => {
+  const { w, state, el } = page(t);
+  w.eval('accepting=true');
+  w.receive({ ...state, started: state.serverTime, radius: 80, config: { ...state.config, minRadius: 75 } });
+  w.eval('receivedAt=performance.now()-100000'); w.refreshClock();
+  assert.equal(el('radius').textContent, '75 m');
+  assert.match(el('rulesSummary').textContent, /MIN 75 M/);
+});
+
+test('un server precedente non può ignorare silenziosamente il minimo scelto', t => {
+  const { w, state, calls, el } = page(t);
+  el('name').value = 'Ghost'; el('minRadius').value = '75'; w.enter('create');
+  w.receive(state); // Old response has no minRadius in config.
+  assert.equal(calls.filter(c => c[0] === 'track').length, 0);
+  assert.equal(calls[calls.length - 1][1].action, 'leave');
+  assert.match(el('message').textContent, /Aggiorna il server/);
+});

@@ -6,10 +6,10 @@ Prima versione Android di nascondino geografico: Android 9+ (API 28), interfacci
 
 1. Ospitare il server su un indirizzo **HTTPS** e inserirlo nell'app su tutti i telefoni.
 2. Scegliere nickname e squadra; creare una lobby o entrare col codice a sei cifre.
-3. Il creatore sceglie durata, diametro iniziale, intervallo ping e velocità di ritiro del **raggio** in m/s. Servono almeno una preda e un cacciatore per iniziare.
+3. Il creatore sceglie durata, diametro iniziale, intervallo ping e velocità di ritiro del **raggio** in m/s e raggio minimo finale. Il minimo deve essere tra 1 m e metà del diametro iniziale. Servono almeno una preda e un cacciatore per iniziare.
 4. Consentire GPS preciso e notifiche. Dopo l’ingresso il servizio Android mantiene GPS e ping attivi anche con schermo spento o app in background. Il creatore avvia con un fix recente entro 100 m di precisione: quel punto diventa il centro fisso del campo.
 5. Tutti vedono la propria posizione continua e l'ultimo ping di tutti gli altri, con squadra, precisione ed età. Il server limita i ping durante la partita; la prima posizione viene pubblicata subito. In attesa lobby le posizioni si aggiornano ogni circa 2 secondi.
-6. Il campo si riduce fino a un raggio minimo di 25 m; alla scadenza termina il timer. Il creatore può terminare la partita per tutti; termina anche se una squadra lascia la lobby. Le coordinate vengono eliminate alla fine. Catture e vittoria sono concordate di persona: non ci sono eliminazioni automatiche o rilevamento contatto.
+6. Il campo si riduce fino a un raggio minimo scelto (25 m predefiniti); alla scadenza termina il timer. Il creatore può terminare la partita per tutti; termina anche se una squadra lascia la lobby. Le coordinate vengono eliminate alla fine. Catture e vittoria sono concordate di persona: non ci sono eliminazioni automatiche o rilevamento contatto.
 
 | Preset | Durata | Diametro | Ping | Ritiro raggio |
 |---|---:|---:|---:|---:|
@@ -52,11 +52,11 @@ Due telefoni reali: creare/entrare, autorizzare GPS, verificare ping di entrambe
 
 ## GitHub Actions
 
-Il workflow `.github/workflows/android.yml` compila a ogni push/PR e può partire manualmente da **Actions → Android APK → Run workflow**. Esegue 14 test server/interfaccia e lint, verifica il limite di 100 MB e pubblica `nogar-android-debug` negli artefatti della run. Il workflow viene eseguito solo dopo aver pubblicato questi file nel repository; la sua presenza locale non equivale a una run completata.
+Il workflow `.github/workflows/android.yml` compila a ogni push/PR e può partire manualmente da **Actions → Android APK → Run workflow**. Esegue 19 test server/interfaccia e lint, verifica il limite di 100 MB e pubblica `nogar-android-debug` negli artefatti della run. Il workflow viene eseguito solo dopo aver pubblicato questi file nel repository; la sua presenza locale non equivale a una run completata.
 
 ### Stato delle verifiche locali
 
-14 test automatici: 7 test del server con tempo simulato (ping, ruoli, scadenza, autorizzazioni, uscita, coordinate e limiti) e 7 test DOM dell’interfaccia (form, nomi sicuri, timer, GPS delegato e uscita). Eseguirli con `npm ci --ignore-scripts && npm test` dalla radice. I test DOM simulano la mappa e il bridge Android: non verificano grafica, GPS fisico o ciclo di vita Android. Il layout degli asset è stato verificato in Chromium a 390 × 844 servendoli via HTTP locale: ingresso e lobby non hanno errori JavaScript o overflow orizzontale. Questo controllo non sostituisce il collaudo WebView/Android e non verifica GPS o disponibilità delle tessere mappa. Nessun telefono o emulatore Android è stato usato.
+19 test automatici: 9 test del server con tempo simulato (ping, ruoli, scadenza, autorizzazioni, uscita, coordinate e limiti) e 10 test DOM dell’interfaccia (form, nomi sicuri, timer, GPS delegato e uscita). Eseguirli con `npm ci --ignore-scripts && npm test` dalla radice. I test DOM simulano la mappa e il bridge Android: non verificano grafica, GPS fisico o ciclo di vita Android. Il layout degli asset è stato verificato in Chromium a 390 × 844 servendoli via HTTP locale: ingresso e lobby non hanno errori JavaScript o overflow orizzontale. Questo controllo non sostituisce il collaudo WebView/Android e non verifica GPS o disponibilità delle tessere mappa. Nessun telefono o emulatore Android è stato usato.
 
 
 ## GPS in background (v0.3)
@@ -88,3 +88,8 @@ Gradle Wrapper 8.11.1 è incluso con checksum SHA-256 della distribuzione. Actio
 Configurazione Render e guida `docs/SERVER.md` per ottenere un URL HTTPS con il proprio account. L’app verifica `/health` prima di salvare l’indirizzo e aprire la lobby; include una guida accessibile dal collegamento iniziale. Il controllo accetta anche il precedente `/health` con `ok: true`.
 
 I pulsanti usano caratteri leggibili senza il font condensato dei titoli, proporzioni stabili, altezze coerenti, icone quadrate e righe flessibili. Verificati nel browser a 320, 360, 390 e 480 px sulle schermate ingresso, lobby e partita: nessun overflow di pulsanti o pagina e nessuna icona stirata. Non è una prova su telefono fisico.
+
+
+## v0.6 · Raggio minimo personalizzabile
+
+Nelle impostazioni del campo il creatore sceglie **Raggio minimo · m**. Tutti i preset propongono 25 m; sono ammessi valori da 1 m fino al raggio iniziale (metà del diametro). La mappa, il calcolo del server e il riepilogo della lobby usano lo stesso limite. I client precedenti che omettono il parametro mantengono 25 m. Aggiornare sia APK sia server per utilizzare il limite personalizzato.

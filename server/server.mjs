@@ -3,9 +3,9 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 export const presets = {
-  sprint: { label: 'SPRINT · 10 min', minutes: 10, diameter: 600, ping: 15, shrink: 0.4 },
-  classic: { label: 'CLASSIC · 20 min', minutes: 20, diameter: 1200, ping: 30, shrink: 0.4 },
-  explorer: { label: 'EXPLORER · 30 min', minutes: 30, diameter: 2000, ping: 45, shrink: 0.5 }
+  sprint: { label: 'SPRINT · 10 min', minutes: 10, diameter: 600, ping: 15, shrink: 0.4, minRadius: 25 },
+  classic: { label: 'CLASSIC · 20 min', minutes: 20, diameter: 1200, ping: 30, shrink: 0.4, minRadius: 25 },
+  explorer: { label: 'EXPLORER · 30 min', minutes: 30, diameter: 2000, ping: 45, shrink: 0.5, minRadius: 25 }
 };
 const secret = () => randomBytes(24).toString('hex');
 const numeric = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
@@ -62,10 +62,12 @@ export function createServer({ clock = Date.now } = {}) {
           const c = b.config;
           if (!c || !numeric(c.minutes, 2, 120) || !numeric(c.diameter, 100, 10000)
               || !numeric(c.ping, 5, 300) || !numeric(c.shrink, 0, 5)) fail(400, 'Impostazioni non valide');
+          const minRadius = c.minRadius === undefined ? 25 : c.minRadius;
+          if (!numeric(minRadius, 1, c.diameter / 2)) fail(400, 'Il raggio minimo deve essere tra 1 m e metà del diametro iniziale');
           if (rooms.size >= 1000) fail(503, 'Server pieno');
           let code;
           do { code = String(randomInt(100000, 1000000)); } while (rooms.has(code));
-          room = { code, config: { minutes: c.minutes, diameter: c.diameter, ping: c.ping, shrink: c.shrink },
+          room = { code, config: { minutes: c.minutes, diameter: c.diameter, ping: c.ping, shrink: c.shrink, minRadius },
             players: [], host: null, started: null, ended: null, center: null, updated: now };
           rooms.set(code, room);
         } else {
@@ -132,7 +134,7 @@ export function createServer({ clock = Date.now } = {}) {
       res.end(JSON.stringify({ code: room.code, token: player.id, host: room.host === player.id,
         config: room.config, started: room.started, ended: room.ended, center: room.center, serverTime: now,
         nextPingIn, remaining: room.ended ? 0 : Math.max(0, room.config.minutes * 60 - elapsed),
-        radius: Math.max(25, room.config.diameter / 2 - elapsed * room.config.shrink),
+        radius: Math.max(room.config.minRadius, room.config.diameter / 2 - elapsed * room.config.shrink),
         players: room.players.map(p => ({ name: p.name, role: p.role, self: p === player,
           host: p.id === room.host, online: now - p.seen < 30000, location: p.location })) }));
     } catch (e) {
