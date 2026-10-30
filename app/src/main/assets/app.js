@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const val = id => $(id).value.trim();
 let accepting = false, state = null, auth = null, fix = null;
 let map = null, layer = null, own = null, accuracyRing = null, zone = null;
-let busy = false, receivedAt = 0, requestAt = 0, gpsAt = 0, zoneFitted = false, activeCode = null;
+let busy = false, receivedAt = 0, requestAt = 0, gpsAt = 0, zoneFitted = false, selfCentered = false, activeCode = null;
 let pendingAction = null, dialogFocus = null;
 const presets = { sprint: [10, 600, 15, .4], classic: [20, 1200, 30, .4], explorer: [30, 2000, 45, .5] };
 
@@ -12,6 +12,24 @@ function show(id) {
   if (id === 'game') setTimeout(() => { if (map) map.invalidateSize(); }, 100);
 }
 function notice(message) { $('message').classList.remove('hidden'); $('message').textContent = message; }
+function openSettings() {
+  if (auth) return notice('Esci dalla lobby prima di cambiare server.');
+  show('setup');
+}
+function editProfile() { $('profileEditor').classList.remove('hidden'); $('name').focus(); }
+function paintProfile() {
+  const hunter = val('role') === 'hunter';
+  $('profileName').textContent = val('name') || 'Il tuo nickname';
+  $('profileRole').textContent = hunter ? 'CACCIATORE' : 'PREDA';
+  $('profileRole').classList.toggle('hunter', hunter);
+  $('profileAvatar').innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' + (hunter ? 'raven' : 'ghost') + '"/></svg>';
+}
+function saveProfile() {
+  if (!val('name')) { notice('Scegli il tuo nickname.'); $('name').focus(); return false; }
+  paintProfile(); $('profileEditor').classList.add('hidden');
+  try { localStorage.setItem('nogar-profile', JSON.stringify({ name: val('name'), role: val('role') })); } catch (ignored) {}
+  return true;
+}
 function connected() { show('home'); $('message').classList.add('hidden'); Android.requestGps(); }
 function mode(value) {
   const create = value === 'create';
@@ -43,6 +61,7 @@ function enter(action) {
       $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro 100–10000 m, ping 5–300 s, ritiro 0–5 m/s.');
     }
   }
+  saveProfile();
   accepting = true; state = null; auth = null;
   send({ action, name: val('name'), role: val('role'), code: val('code'), config });
 }
@@ -69,7 +88,7 @@ function receive(result) {
   if (auth && (auth.code !== result.code || auth.token !== result.token)) return;
   if (state && result.serverTime < state.serverTime) return;
   if (activeCode !== result.code) {
-    activeCode = result.code; zoneFitted = false; fix = null; gpsAt = 0;
+    activeCode = result.code; zoneFitted = false; selfCentered = false; fix = null; gpsAt = 0;
     if (map) { layer.clearLayers(); if (own) map.removeLayer(own); if (accuracyRing) map.removeLayer(accuracyRing); own = null; accuracyRing = null; }
   }
   auth = { code: result.code, token: result.token }; state = result; receivedAt = performance.now();
@@ -81,7 +100,7 @@ function receive(result) {
   const prey = result.players.length - hunters;
   $('count').textContent = String(result.players.length);
   $('teams').textContent = prey + ' PREDE / ' + hunters + ' CACC.';
-  $('myRole').textContent = me && me.role === 'hunter' ? '⌖ CACCIATORE' : '◈ PREDA';
+  $('myRole').textContent = me && me.role === 'hunter' ? 'CACCIATORE' : 'PREDA';
   $('myRole').classList.toggle('hunter', !!me && me.role === 'hunter');
   $('gameRole').value = me ? me.role : 'prey';
   $('lobbyControls').classList.toggle('hidden', !!result.started || !!result.ended);
@@ -107,10 +126,13 @@ function receive(result) {
 function initMap() {
   if (map || !window.L) return;
   map = L.map('map', { zoomControl: true }).setView([41.9, 12.5], 13);
+  let tileErrors = 0;
+  $('mapStatus').textContent = 'Caricamento mappa geografica…';
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '© OpenStreetMap contributors'
-  }).on('tileerror', () => { $('mapStatus').textContent = 'Tessere non disponibili: controlla Internet prima di muoverti.'; })
-    .on('load', () => { $('mapStatus').textContent = 'Mappa online · © OpenStreetMap contributors'; }).addTo(map);
+  }).on('loading', () => { tileErrors = 0; $('mapStatus').textContent = 'Caricamento mappa geografica…'; })
+    .on('tileerror', () => { tileErrors++; $('mapStatus').textContent = 'Tessere non disponibili: controlla Internet prima di muoverti.'; })
+    .on('load', () => { if (!tileErrors) $('mapStatus').textContent = 'Mappa online · © OpenStreetMap contributors'; }).addTo(map);
   layer = L.layerGroup().addTo(map);
 }
 function drawMap() {
@@ -142,10 +164,10 @@ function renderPlayers() {
   state.players.forEach(p => {
     const row = document.createElement('div'); row.className = 'player';
     const main = document.createElement('div'); main.className = 'player-main';
-    const mark = document.createElement('div'); mark.className = 'player-mark' + (p.role === 'hunter' ? ' hunter' : ''); mark.textContent = p.role === 'hunter' ? '⌖' : '◈';
+    const mark = document.createElement('div'); mark.className = 'player-mark' + (p.role === 'hunter' ? ' hunter' : ''); mark.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' + (p.role === 'hunter' ? 'raven' : 'ghost') + '"/></svg>';
     const text = document.createElement('div'); const name = document.createElement('div'); name.className = 'player-name'; name.textContent = p.name;
     const badge = document.createElement('small'); badge.textContent = (p.self ? 'TU ' : '') + (p.host ? 'HOST' : ''); name.append(badge);
-    const sub = document.createElement('div'); sub.className = 'player-sub'; sub.textContent = (p.role === 'hunter' ? 'CACCIATORE' : 'PREDA') + (p.online ? '' : ' · OFFLINE');
+    const sub = document.createElement('div'); sub.className = 'player-sub' + (p.role === 'hunter' ? ' hunter' : ''); sub.textContent = (p.role === 'hunter' ? 'CACCIATORE' : 'PREDA') + (p.online ? '' : ' · OFFLINE');
     text.append(name, sub); main.append(mark, text);
     const position = document.createElement('div'); position.className = 'player-age';
     position.classList.toggle('old', !p.online || !!p.location && state.serverTime - p.location.at + currentElapsed() * 1000 > state.config.ping * 2000 + 10000);
@@ -162,7 +184,7 @@ function paintSelf() {
   else own = L.circleMarker(point, { radius: 7, color: '#fff', fillColor: '#179bd0', fillOpacity: 1, weight: 3 }).addTo(map);
   if (accuracyRing) accuracyRing.setLatLng(point).setRadius(fix.accuracy);
   else accuracyRing = L.circle(point, { radius: fix.accuracy, color: '#1599cc', fillColor: '#49caff', fillOpacity: .08, weight: 1 }).addTo(map);
-  if (!zoneFitted && !state.center) { map.setView(point, 15); zoneFitted = true; }
+  if (!selfCentered && !state.center) { map.setView(point, 15); selfCentered = true; }
 }
 function onGps(lat, lng, accuracy) {
   if (!state || state.ended) return;
@@ -231,3 +253,12 @@ document.addEventListener('keydown', event => {
 }));
 setInterval(() => { if (!document.hidden && state) { refreshClock(); renderPlayers(); } }, 1000);
 $('server').value = Android.savedServer();
+
+try {
+  const profile = JSON.parse(localStorage.getItem('nogar-profile') || 'null');
+  if (profile && typeof profile.name === 'string' && profile.name.trim() && profile.name.length <= 24 && ['prey', 'hunter'].includes(profile.role)) {
+    $('name').value = profile.name; $('role').value = profile.role;
+    paintProfile(); $('profileEditor').classList.add('hidden');
+  }
+} catch (ignored) {}
+$('role').addEventListener('change', paintProfile);

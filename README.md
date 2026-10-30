@@ -38,7 +38,7 @@ Distribuzione: copiare `server/` su una VM con Node, eseguire tramite supervisor
 JDK 17 o 21, Gradle 8.11.1, SDK Android 35 e Build Tools 35.0.0. Impostare `ANDROID_HOME` oppure `sdk.dir` in `local.properties` (ignorato da Git).
 
 ```sh
-gradle --no-daemon --max-workers=2 :app:assembleDebug :app:lintDebug
+./gradlew --no-daemon --max-workers=2 :app:assembleDebug :app:lintDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -50,11 +50,11 @@ Due telefoni reali: creare/entrare, autorizzare GPS, verificare ping di entrambe
 
 ## GitHub Actions
 
-Il workflow `.github/workflows/android.yml` compila a ogni push/PR e può partire manualmente da **Actions → Android APK → Run workflow**. Esegue 10 test server/interfaccia e lint, verifica il limite di 100 MB e pubblica `nogar-android-debug` negli artefatti della run. Il workflow viene eseguito solo dopo aver pubblicato questi file nel repository; la sua presenza locale non equivale a una run completata.
+Il workflow `.github/workflows/android.yml` compila a ogni push/PR e può partire manualmente da **Actions → Android APK → Run workflow**. Esegue 12 test server/interfaccia e lint, verifica il limite di 100 MB e pubblica `nogar-android-debug` negli artefatti della run. Il workflow viene eseguito solo dopo aver pubblicato questi file nel repository; la sua presenza locale non equivale a una run completata.
 
 ### Stato delle verifiche locali
 
-10 test automatici: 6 test del server con tempo simulato (ping, ruoli, scadenza, autorizzazioni, uscita, coordinate e limiti) e 4 test DOM dell’interfaccia (form, nomi sicuri, timer, GPS delegato e uscita). Eseguirli con `npm ci --ignore-scripts && npm test` dalla radice. I test DOM simulano la mappa e il bridge Android: non verificano grafica, GPS fisico o ciclo di vita Android. Il rendering con Chromium dell'ambiente è bloccato dalla policy dell'organizzazione: non è un collaudo visivo superato. Nessun telefono o emulatore Android è stato usato.
+12 test automatici: 6 test del server con tempo simulato (ping, ruoli, scadenza, autorizzazioni, uscita, coordinate e limiti) e 6 test DOM dell’interfaccia (form, nomi sicuri, timer, GPS delegato e uscita). Eseguirli con `npm ci --ignore-scripts && npm test` dalla radice. I test DOM simulano la mappa e il bridge Android: non verificano grafica, GPS fisico o ciclo di vita Android. Il layout degli asset è stato verificato in Chromium a 390 × 844 servendoli via HTTP locale: ingresso e lobby non hanno errori JavaScript o overflow orizzontale. Questo controllo non sostituisce il collaudo WebView/Android e non verifica GPS o disponibilità delle tessere mappa. Nessun telefono o emulatore Android è stato usato.
 
 
 ## GPS in background (v0.3)
@@ -72,3 +72,10 @@ Esci dalla lobby o usa l’azione nella notifica per fermare il GPS. Si ferma an
 - Limiti richieste per giocatore invece di una quota troppo bassa condivisa dal reverse proxy; pulizia periodica delle lobby inattive e cancellazione coordinate a fine partita.
 
 Il servizio server deve comunque essere ospitato su HTTPS per giocare fra telefoni: GitHub Actions compila l’APK ma non ospita le lobby.
+
+
+## v0.4 · Mockup e build riproducibile
+
+Interfaccia riallineata al concept approvato: font Anton incluso (SIL OFL, `assets/ANTON-LICENSE`), radar circolare, profilo modificabile e salvato localmente senza token, icone vettoriali di prede/cacciatori, preset con segno di selezione, impostazioni campo, dashboard e schede giocatore. La mappa resta geografica e chiara.
+
+Gradle Wrapper 8.11.1 è incluso con checksum SHA-256 della distribuzione. Actions installa esplicitamente piattaforma Android 35 e Build Tools 35.0.0, separa test/build/lint/verifica APK e conserva APK e report anche se un controllo successivo fallisce. Non richiede segreti per la build debug. Verificati localmente Node 22, wrapper con cache vuota, build e lint. L’esito della run remota non è verificabile finché l’ambiente non può leggere `api.github.com`; serve il log del passaggio fallito per attribuire la precedente segnalazione a una causa specifica.

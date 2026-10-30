@@ -11,7 +11,7 @@ function page(t) {
   t.after(() => w.close());
   w.Android = { savedServer: () => '', requestGps() {}, startTracking: s => calls.push(['track', JSON.parse(s)]),
     api: s => calls.push(['api', JSON.parse(s)]), stopTracking: () => calls.push(['stop']), copyCode() {} };
-  const map = { setView() { return this; }, fitBounds() {}, invalidateSize() {}, removeLayer() {}, distance() { return 100; }, getZoom() { return 15; } };
+  const map = { setView() { return this; }, fitCalls: 0, fitBounds() { this.fitCalls++; }, invalidateSize() {}, removeLayer() {}, distance() { return 100; }, getZoom() { return 15; } };
   const shape = () => ({ addTo() { return this; }, on() { return this; }, clearLayers() {}, setLatLng() { return this; }, setRadius() { return this; }, setStyle() {}, bindPopup() { return this; }, getBounds() { return []; } });
   w.L = { map: () => map, tileLayer: shape, layerGroup: shape, circle: shape, circleMarker: shape, marker: shape, divIcon: x => x };
   Object.defineProperty(w.performance, 'now', { value: () => 100000 });
@@ -20,7 +20,7 @@ function page(t) {
     radius: 600, remaining: 1200, serverTime: 1700000000000, config: { minutes: 20, diameter: 1200, ping: 30, shrink: .4 },
     players: [{ name: '<img src=x onerror=alert(1)>', role: 'hunter', self: true, host: true, online: true, location: { lat: 45, lng: 12, accuracy: 4, at: 1700000000000 } },
       { name: 'Ghost', role: 'prey', self: false, host: false, online: true, location: null }] };
-  return { w, calls, state, el: id => w.document.getElementById(id) };
+  return { w, calls, state, map, el: id => w.document.getElementById(id) };
 }
 test('form: tab, preset, validazione e protezione dal doppio ingresso', t => {
   const { w, calls, el } = page(t);
@@ -57,4 +57,27 @@ test('uscita confermata: ferma il servizio e ignora risposte tardive', t => {
   w.ask('leave'); assert.equal(el('dialog').classList.contains('hidden'), false);
   w.confirmAction(); assert.ok(calls.some(c => c[0] === 'stop'));
   w.receive(state); assert.equal(el('game').classList.contains('hidden'), true);
+});
+test('profilo salvato e impostazioni server bloccate durante una partita', t => {
+  const { w, state, el } = page(t);
+  el('name').value = 'Ghost'; el('role').value = 'hunter';
+  assert.equal(w.saveProfile(), true);
+  assert.equal(JSON.parse(w.localStorage.getItem('nogar-profile')).role, 'hunter');
+  assert.equal(el('profileName').textContent, 'Ghost');
+  assert.equal(el('profileRole').textContent, 'CACCIATORE');
+  assert.ok(el('profileEditor').classList.contains('hidden'));
+  w.editProfile(); assert.equal(el('profileEditor').classList.contains('hidden'), false);
+  w.eval('accepting=true'); w.receive(state); w.openSettings();
+  assert.equal(el('game').classList.contains('hidden'), false);
+  assert.ok(el('message').textContent.includes('Esci dalla lobby'));
+});
+
+test('la zona viene inquadrata all’avvio anche dopo aver centrato il GPS in lobby', t => {
+  const { w, state, map } = page(t);
+  w.eval('accepting=true'); w.receive(state); w.onGps(45, 12, 5);
+  assert.equal(map.fitCalls, 0);
+  const started = { ...state, started: state.serverTime, center: { lat: 45, lng: 12 } };
+  w.receive(started); assert.equal(map.fitCalls, 1);
+  w.receive({ ...started, serverTime: state.serverTime + 2200 });
+  assert.equal(map.fitCalls, 1); // Subsequent polls preserve the player's chosen zoom.
 });

@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
         }
         web.setBackgroundColor(0xff090d18);
         web.getSettings().setJavaScriptEnabled(true); // Bundled UI only; remote navigation is blocked.
-        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.2.0");
+        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.4.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);
         web.getSettings().setAllowContentAccess(false);
