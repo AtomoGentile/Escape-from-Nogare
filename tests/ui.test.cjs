@@ -81,3 +81,17 @@ test('la zona viene inquadrata all’avvio anche dopo aver centrato il GPS in lo
   w.receive({ ...started, serverTime: state.serverTime + 2200 });
   assert.equal(map.fitCalls, 1); // Subsequent polls preserve the player's chosen zoom.
 });
+test('verifica server: bottone occupato e ripristino dopo errore o successo', t => {
+  const { w, el } = page(t);
+  w.connecting();
+  assert.equal(el('connect').disabled, true);
+  assert.match(el('connectLabel').textContent, /VERIFICA/);
+  w.connectionFailed('Server non raggiungibile');
+  assert.equal(el('connect').disabled, false);
+  assert.equal(el('connectLabel').textContent, 'CONNETTI');
+  assert.equal(el('setup').classList.contains('hidden'), false);
+  assert.match(el('message').textContent, /non raggiungibile/);
+  w.connecting(); w.connected();
+  assert.equal(el('connect').disabled, false);
+  assert.equal(el('home').classList.contains('hidden'), false);
+});

@@ -30,7 +30,9 @@ function saveProfile() {
   try { localStorage.setItem('nogar-profile', JSON.stringify({ name: val('name'), role: val('role') })); } catch (ignored) {}
   return true;
 }
-function connected() { show('home'); $('message').classList.add('hidden'); Android.requestGps(); }
+function connecting() { $('connect').disabled = true; $('connectLabel').textContent = 'VERIFICA SERVER…'; }
+function connectionFailed(message) { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; notice(message); }
+function connected() { $('connect').disabled = false; $('connectLabel').textContent = 'CONNETTI'; show('home'); $('message').classList.add('hidden'); Android.requestGps(); }
 function mode(value) {
   const create = value === 'create';
   $('createPanel').classList.toggle('hidden', !create); $('joinPanel').classList.toggle('hidden', create);

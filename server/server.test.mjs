@@ -83,3 +83,12 @@ test('lobby inattive scadono e i limiti richieste sono per giocatore', async t =
   f.advance(6 * 3600000 + 1);
   assert.equal((await f.api({ ...f.prey, action: 'poll' })).errorCode, 'ROOM_GONE');
 });
+test('health check pubblico identifica il server senza esporre lobby o coordinate', async t => {
+  const server = createServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), { ok: true, service: 'nogar', protocol: 1 });
+});

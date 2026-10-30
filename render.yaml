@@ -1,0 +1,16 @@
+# Demo hosting: the free service can sleep/restart and loses in-memory lobbies.
+# Review the selected plan in Render before deploying.
+services:
+  - type: web
+    name: nogar-server
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: node --check server.mjs
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0

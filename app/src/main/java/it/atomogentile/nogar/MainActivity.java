@@ -17,7 +17,9 @@ import java.util.concurrent.*;
 public class MainActivity extends Activity {
     private WebView web;
     private final ExecutorService net = Executors.newSingleThreadExecutor();
-    private String endpoint = "", pendingSession;
+    private volatile String endpoint = "";
+    private String pendingSession;
+    private final java.util.concurrent.atomic.AtomicBoolean connecting = new java.util.concurrent.atomic.AtomicBoolean(false);
     private boolean visible, ready;
 
     @Override public void onCreate(Bundle saved) {
@@ -34,7 +36,7 @@ public class MainActivity extends Activity {
         }
         web.setBackgroundColor(0xff090d18);
         web.getSettings().setJavaScriptEnabled(true); // Bundled UI only; remote navigation is blocked.
-        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.4.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
+        web.getSettings().setUserAgentString(web.getSettings().getUserAgentString() + " NogarHunt/0.5.0 (+https://github.com/AtomoGentile/Escape-from-Nogare)");
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);
         web.getSettings().setAllowContentAccess(false);
@@ -76,14 +78,37 @@ public class MainActivity extends Activity {
     @JavascriptInterface public String savedServer() { return getPreferences(0).getString("server", ""); }
 
     @JavascriptInterface public void connect(String url) {
+        if (TrackingService.current != null) { js("notice('Esci dalla lobby prima di cambiare server')"); return; }
+        final String target;
         try {
             URI u = new URI(url);
             if (!"https".equals(u.getScheme()) || u.getHost() == null || u.getUserInfo() != null
                     || u.getQuery() != null || u.getFragment() != null) throw new Exception();
-            endpoint = url.replaceAll("/+$", "");
-            getPreferences(0).edit().putString("server", endpoint).apply();
-            js("connected()");
-        } catch (Exception e) { js("notice('Serve un indirizzo server HTTPS valido')"); }
+            target = url.replaceAll("/+$", "");
+        } catch (Exception e) {
+            js("connectionFailed('Serve l’indirizzo HTTPS del server, senza /health o /api')"); return;
+        }
+        if (!connecting.compareAndSet(false, true)) return;
+        js("connecting()");
+        net.execute(() -> {
+            try {
+                ApiClient.health(target);
+                endpoint = target;
+                getPreferences(0).edit().putString("server", endpoint).apply();
+                js("connected()");
+            } catch (Exception e) {
+                js("connectionFailed('Server non pronto o indirizzo errato. Controlla /health nel browser; se il server era in pausa, attendi e riprova.')");
+            } finally { connecting.set(false); }
+        });
+    }
+
+    @JavascriptInterface public void openServerGuide() {
+        runOnUiThread(() -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
+                    "https://github.com/AtomoGentile/Escape-from-Nogare/blob/main/docs/SERVER.md")));
+            } catch (ActivityNotFoundException e) { js("notice('Apri docs/SERVER.md nel repository GitHub Escape-from-Nogare')"); }
+        });
     }
 
     @JavascriptInterface public void api(String body) {

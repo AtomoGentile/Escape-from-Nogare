@@ -39,7 +39,7 @@ export function createServer({ clock = Date.now } = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     try {
       cleanup();
-      if (req.method === 'GET' && req.url === '/health') { res.end('{"ok":true}'); return; }
+      if (req.method === 'GET' && req.url === '/health') { res.end('{"ok":true,"service":"nogar","protocol":1}'); return; }
       if (req.method !== 'POST' || req.url !== '/api') fail(404, 'Endpoint inesistente');
       // Coarse abuse limit, not the per-player budget. Reverse proxies may share one IP.
       limit('ip:' + req.socket.remoteAddress, 10000);
