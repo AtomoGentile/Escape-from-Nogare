@@ -39,6 +39,17 @@ jobs:
           java -version
           node --version
           ./gradlew --version
+      - name: Validate Windows helper syntax
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem tools/windows/*.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+            Write-Host "Parsed $($_.Name)"
+          }
       - name: Install test dependencies
         run: npm ci --ignore-scripts
       - name: Server and interface tests

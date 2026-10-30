@@ -34,6 +34,10 @@ Tutti i parametri sono personalizzabili. Il raggio minimo può variare da 1 m al
 
 Chi possiede l’invito è autorizzato ad accedere alla partita. La chiave è condivisa fra i partecipanti: niente revoca individuale, segretezza futura o protezione da un partecipante che ricondivide l’invito. L’organizzatore è l’autorità fidata. Nessuna promessa di anonimato, nessun audit crittografico indipendente effettuato.
 
+## Servizio sul proprio PC Windows 11
+
+Per evitare account di hosting usa la [guida Windows a casa](docs/WINDOWS-HOME.md). Include script di avvio e firewall, HTTPS automatico con Caddy e nome DNS sslip.io senza registrazione. Richiede IP WAN pubblico, porte TCP 80/443 aperte verso il PC e una verifica da rete mobile. Il PC deve restare acceso; non e stato configurato da remoto.
+
 ## Avvio del solo relay
 
 Node 22+, nessuna dipendenza runtime:
