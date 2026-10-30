@@ -153,3 +153,14 @@ test('server PC: privacy HTTPS, coordinatore e nessuna indicazione di cifratura 
   assert.match(el('connectionText').textContent,/Server PC/);
   assert.doesNotMatch(el('connectionText').textContent,/cifrat/);
 });
+
+test('diametro oltre 10 km e raggio minimo oltre 5 km possono creare una lobby', t => {
+  const {w,el,calls}=page(t);w.connected();el('name').value='Explorer';
+  el('diameter').value='50000';el('minRadius').value='12000';
+  el('diameter').dispatchEvent(new w.Event('input'));
+  assert.equal(el('diameter').hasAttribute('max'),false);
+  assert.equal(el('minRadius').max,'25000');
+  w.enter('create');
+  const request=calls.find(c=>c[0]==='api')[1];
+  assert.equal(request.config.diameter,50000);assert.equal(request.config.minRadius,12000);
+});

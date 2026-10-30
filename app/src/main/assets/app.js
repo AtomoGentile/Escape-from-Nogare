@@ -62,11 +62,11 @@ function enter(action) {
   if (!val('name')) return notice('Scegli un nickname prima di entrare.');
   if (action === 'join' && !/^nogar:\/\/join#[A-Za-z0-9_-]+$/.test(val('code'))) return notice('Incolla l’invito completo ricevuto dall’organizzatore, non il solo codice a 6 cifre.');
   const config = {};
-  const limits = { minutes: [2, 120], diameter: [100, 10000], ping: [5, 300], shrink: [0, 5], minRadius: [1, 5000] };
+  const limits = { minutes: [2, 120], diameter: [100, Infinity], ping: [5, 300], shrink: [0, 5], minRadius: [1, Infinity] };
   for (const key of Object.keys(limits)) {
     config[key] = Number(val(key));
     if (action === 'create' && (!val(key) || !Number.isFinite(config[key]) || config[key] < limits[key][0] || config[key] > limits[key][1])) {
-      $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro 100–10000 m, ping 5–300 s, ritiro 0–5 m/s, raggio minimo da 1 m.');
+      $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro da 100 m, ping 5–300 s, ritiro 0–5 m/s, raggio minimo da 1 m.');
     }
   }
   if (action === 'create' && config.minRadius > config.diameter / 2) {

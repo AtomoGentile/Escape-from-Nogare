@@ -32,4 +32,11 @@ public class PhoneGameTest {
         JSONObject b=creation();b.getJSONObject("config").put("minRadius",601);
         try{new PhoneGame("123456",b,()->1L);fail();}catch(IllegalArgumentException expected){}
     }
+    @Test public void diameterAboveTenKmSupportsLargerMinimum()throws Exception{
+        JSONObject b=creation();b.getJSONObject("config").put("diameter",50000).put("minRadius",12000);
+        JSONObject state=new PhoneGame("123456",b,()->1L).handle("host",action("poll"));
+        assertEquals(50000,state.getJSONObject("config").getDouble("diameter"),0);
+        assertEquals(25000,state.getDouble("radius"),0);
+        assertEquals(12000,state.getJSONObject("config").getDouble("minRadius"),0);
+    }
 }

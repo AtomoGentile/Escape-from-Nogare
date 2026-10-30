@@ -62,7 +62,7 @@ export function createServer({ clock = Date.now } = {}) {
         if (b.action === 'create') {
           if(typeof b.joinProof!=='string'||! /^[a-f0-9]{64}$/.test(b.joinProof))fail(400,'Serve un invito privato valido');
           const c = b.config;
-          if (!c || !numeric(c.minutes, 2, 120) || !numeric(c.diameter, 100, 10000)
+          if (!c || !numeric(c.minutes, 2, 120) || !numeric(c.diameter, 100, Infinity)
               || !numeric(c.ping, 5, 300) || !numeric(c.shrink, 0, 5)) fail(400, 'Impostazioni non valide');
           const minRadius = c.minRadius === undefined ? 25 : c.minRadius;
           if (!numeric(minRadius, 1, c.diameter / 2)) fail(400, 'Il raggio minimo deve essere tra 1 m e metà del diametro iniziale');

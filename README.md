@@ -1,4 +1,4 @@
-# NOGAR // HUNT · Android 9+ · v0.9
+# NOGAR // HUNT · Android 9+ · v0.9.1
 
 Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.9 puoi scegliere: server completo sul tuo PC oppure partita sul telefono organizzatore con Firebase/relay cifrato.** In modalità telefono il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
 
@@ -28,7 +28,7 @@ In modalità telefono, il telefono organizzatore non viene sostituito automatica
 | Classic | 20 min | 1200 m | 30 s | 0,4 m/s | 25 m |
 | Explorer | 30 min | 2000 m | 45 s | 0,5 m/s | 25 m |
 
-Tutti i parametri sono personalizzabili. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il motore sul PC o sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. Usare solo aree autorizzate e percorsi sicuri.
+Tutti i parametri sono personalizzabili. Il diametro parte da 100 m e non ha un limite massimo imposto dall’app. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il motore sul PC o sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. Usare solo aree autorizzate e percorsi sicuri.
 
 ## Cosa passa dai servizi esterni
 

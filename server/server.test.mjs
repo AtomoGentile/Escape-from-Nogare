@@ -130,3 +130,11 @@ test('invito privato obbligatorio e autorita PC indipendente dal creatore', asyn
   assert.equal(result.ended,null); assert.equal(result.host,true); assert.equal(result.authority,'pc');
   assert.equal(result.players.length,2);
 });
+
+test('diametro oltre 10 km senza tetto fisso e minimo proporzionale',async t=>{
+  const f=await fixture(t,{diameter:50000,minRadius:12000});
+  const result=await f.api({...f.host,action:'poll'});
+  assert.equal(result.config.diameter,50000);assert.equal(result.radius,25000);
+  assert.equal(result.config.minRadius,12000);
+  assert.equal((await f.api({action:'create',name:'Invalid',role:'hunter',config:{...config,diameter:50000,minRadius:25001}})).status,400);
+});
