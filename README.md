@@ -75,7 +75,7 @@ Actions esegue test Node, build APK, test JVM dell’autorità/cifratura/relay r
 
 ## Stato delle verifiche e limiti
 
-L’integrazione Firebase include test delle regole e del client REST Java con Auth/Database Emulator in Actions. La rete locale di questo ambiente blocca il download ufficiale dell’emulatore; l’esito remoto viene verificato prima della consegna. Non e stato configurato alcun progetto Firebase reale.
+L’integrazione Firebase include test delle regole e del client REST Java con Auth/Database Emulator in Actions. La rete locale di questo ambiente blocca il download ufficiale dell’emulatore: i test vengono eseguiti sul runner GitHub e il controllo fallisce anche se la prova REST Java viene saltata. La run iniziale [41071236119](https://github.com/AtomoGentile/Escape-from-Nogare/actions/runs/41071236119) ha superato build, emulatori e lint. Non e stato configurato alcun progetto Firebase reale.
 
 
 - Test Node del precedente motore, relay opaco, validazione, autorizzazioni e DOM dell’interfaccia.

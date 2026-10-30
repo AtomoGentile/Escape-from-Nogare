@@ -5,7 +5,7 @@
   "scripts": {
     "test": "node --test server/server.test.mjs server/relay.test.mjs tests/ui.test.cjs",
     "test:firebase": "node --test tests/firebase/rules.test.mjs",
-    "test:firebase:ci": "firebase emulators:exec --only auth,database --project demo-nogar \"npm run test:firebase && ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest && cp -R app/build/test-results/testDebugUnitTest app/build/reports/firebase-emulator-tests\""
+    "test:firebase:ci": "firebase emulators:exec --only auth,database --project demo-nogar \"npm run test:firebase && ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest && node tests/firebase/assert-jvm.cjs && cp -R app/build/test-results/testDebugUnitTest app/build/reports/firebase-emulator-tests\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.0",

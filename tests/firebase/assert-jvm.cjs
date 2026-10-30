@@ -1,0 +1,11 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const file = 'app/build/test-results/testDebugUnitTest/TEST-it.atomogentile.nogar.FirebaseRelayIntegrationTest.xml';
+const root = fs.readFileSync(file, 'utf8').match(/<testsuite\b[^>]*>/);
+assert.ok(root, 'Missing Firebase JVM integration result');
+const values = Object.fromEntries([...root[0].matchAll(/(\w+)="([^"]*)"/g)].map(m => [m[1], m[2]]));
+assert.equal(values.tests, '1');
+assert.equal(values.skipped, '0', 'Firebase integration was skipped; emulator env did not reach the JVM');
+assert.equal(values.failures, '0');
+assert.equal(values.errors, '0');
+console.log('::notice title=Firebase REST integration verified::1 JVM integration test executed, 0 skipped, 0 failures.');
