@@ -4,8 +4,8 @@ const val = id => $(id).value.trim();
 let accepting = false, state = null, auth = null, fix = null;
 let map = null, layer = null, own = null, accuracyRing = null, zone = null;
 let busy = false, receivedAt = 0, requestAt = 0, gpsAt = 0, zoneFitted = false, selfCentered = false, activeCode = null;
-let pendingAction = null, dialogFocus = null, requestedMinRadius = null;
-const presets = { sprint: [10, 600, 15, .4, 25], classic: [20, 1200, 30, .4, 25], explorer: [30, 2000, 45, .5, 25] };
+let pendingAction = null, dialogFocus = null, requestedMinRadius = null, requestedHeadStart = 0;
+const presets = { sprint: [10, 600, 15, .4, 25, 0], classic: [20, 1200, 30, .4, 25, 0], explorer: [30, 2000, 45, .5, 25, 0] };
 
 function show(id) {
   if (id !== 'game') setMapExpanded(false);
@@ -67,7 +67,7 @@ function mode(value) {
   });
 }
 function preset(key, button) {
-  ['minutes', 'diameter', 'ping', 'shrink', 'minRadius'].forEach((id, i) => { $(id).value = presets[key][i]; });
+  ['minutes', 'diameter', 'ping', 'shrink', 'minRadius', 'preyHeadStart'].forEach((id, i) => { $(id).value = presets[key][i]; });
   document.querySelectorAll('.preset').forEach(el => {
     el.classList.toggle('selected', el === button); el.setAttribute('aria-pressed', String(el === button));
   });
@@ -83,17 +83,18 @@ function enter(action) {
   if (!val('name')) return notice('Scegli un nickname prima di entrare.');
   if (action === 'join' && !/^nogar:\/\/join#[A-Za-z0-9_-]+$/.test(val('code'))) return notice('Incolla l’invito completo ricevuto dall’organizzatore, non il solo codice a 6 cifre.');
   const config = {};
-  const limits = { minutes: [2, 120], diameter: [100, Infinity], ping: [5, 300], shrink: [0, 5], minRadius: [1, Infinity] };
+  const limits = { minutes: [2, 180], diameter: [100, Infinity], ping: [5, 300], shrink: [0, 5], minRadius: [1, Infinity], preyHeadStart: [0, 7200] };
   for (const key of Object.keys(limits)) {
     config[key] = Number(val(key));
     if (action === 'create' && (!val(key) || !Number.isFinite(config[key]) || config[key] < limits[key][0] || config[key] > limits[key][1])) {
-      $(key).focus(); return notice('Controlla le regole: durata 2–120 min, diametro da 100 m, ping 5–300 s, ritiro 0–5 m/s, raggio minimo da 1 m.');
+      $(key).focus(); return notice('Controlla le regole: durata 2–180 min, diametro da 100 m, ping 5–300 s, ritiro 0–5 m/s, raggio minimo da 1 m.');
     }
   }
   if (action === 'create' && config.minRadius > config.diameter / 2) {
     $('minRadius').focus(); return notice('Il raggio minimo non può superare metà del diametro iniziale (' + config.diameter / 2 + ' m).');
   }
   requestedMinRadius = action === 'create' ? config.minRadius : null;
+  requestedHeadStart = action === 'create' ? config.preyHeadStart : 0;
   saveProfile();
   accepting = true; state = null; auth = null;
   send({ action, name: val('name'), role: val('role'), code: val('code'), invite: val('code'), config });
@@ -118,10 +119,10 @@ function receive(result) {
     return;
   }
   if (result.left) return;
-  if (requestedMinRadius !== null && requestedMinRadius !== 25 && result.config.minRadius === undefined) {
+  if ((requestedMinRadius !== null && requestedMinRadius !== 25 && result.config.minRadius === undefined) || (requestedHeadStart > 0 && result.config.preyHeadStart === undefined)) {
     accepting = false; requestedMinRadius = null;
     Android.api(JSON.stringify({ code: result.code, token: result.token, action: 'leave' }));
-    notice('Aggiorna il server: questa versione non supporta ancora il raggio minimo personalizzato. La lobby non è stata mantenuta.');
+    notice('Aggiorna il server: questa versione non supporta le regole scelte. La lobby non è stata mantenuta.');
     return;
   }
   requestedMinRadius = null;
@@ -160,7 +161,7 @@ function receive(result) {
     if (own && map) { map.removeLayer(own); own = null; }
     if (accuracyRing && map) { map.removeLayer(accuracyRing); accuracyRing = null; }
   }
-  $('rulesSummary').textContent = result.config.minutes + ' MIN / Ø ' + result.config.diameter + ' M / PING ' + result.config.ping + ' S / RITIRO ' + result.config.shrink + ' M/S / MIN ' + (result.config.minRadius === undefined ? 25 : result.config.minRadius) + ' M';
+  $('rulesSummary').textContent = result.config.minutes + ' MIN / Ø ' + result.config.diameter + ' M / PING ' + result.config.ping + ' S / RITIRO ' + result.config.shrink + ' M/S / MIN ' + (result.config.minRadius === undefined ? 25 : result.config.minRadius) + ' M / VANTAGGIO PREDE ' + (result.config.preyHeadStart || 0) + ' S';
   drawMap(); renderPlayers(); refreshClock();
 }
 function initMap() {
@@ -243,7 +244,9 @@ function refreshClock() {
   $('phase').textContent = state.ended ? 'TERMINATA' : state.started ? 'TEMPO RESIDUO' : 'DURATA PARTITA';
   $('clock').textContent = Math.floor(remaining / 60).toString().padStart(2, '0') + ':' + Math.floor(remaining % 60).toString().padStart(2, '0');
   $('radius').textContent = Math.round(currentRadius()) + ' m';
-  $('nextPing').textContent = !state.started || state.ended ? '—' : Math.max(0, Math.ceil(state.nextPingIn - elapsed)) + ' s';
+  const me = state.players.find(p => p.self);
+  const escapeRemaining = state.started && !state.ended ? Math.max(0, (state.config.preyHeadStart || 0) - ((state.serverTime - state.started) / 1000 + elapsed)) : 0;
+  $('nextPing').textContent = !state.started || state.ended ? '—' : escapeRemaining > 0 ? (me && me.role === 'prey' ? 'FUGA ' : 'PREDE ') + Math.ceil(escapeRemaining) + ' s' : Math.max(0, Math.ceil(state.nextPingIn - elapsed)) + ' s';
   const stale = elapsed > 15;
   $('connection').classList.toggle('stale', stale);
   $('connectionText').textContent = state.ended ? 'Partita conclusa · nessuna posizione condivisa' : stale ? 'Connessione in ritardo · ping non aggiornati' : state.transport === 'pc' ? 'Server PC · posizioni via HTTPS · GPS attivo' : state.transport === 'host' ? 'Organizzatore sul telefono · messaggi cifrati' : state.transport === 'direct' ? 'Collegamento diretto cifrato · GPS attivo' : 'Inoltro cifrato · GPS in background attivo';

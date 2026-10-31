@@ -19,9 +19,9 @@ final class PhoneGame {
     PhoneGame(String code,JSONObject creation,LongSupplier clock) throws Exception {
         this.code=code;this.clock=clock;
         JSONObject c=creation.getJSONObject("config");
-        double minutes=number(c,"minutes",2,120),diameter=number(c,"diameter",100,Double.POSITIVE_INFINITY);
-        double ping=number(c,"ping",5,300),shrink=number(c,"shrink",0,5),min=number(c,"minRadius",1,diameter/2);
-        config=new JSONObject().put("minutes",minutes).put("diameter",diameter).put("ping",ping).put("shrink",shrink).put("minRadius",min);
+        double minutes=number(c,"minutes",2,180),diameter=number(c,"diameter",100,Double.POSITIVE_INFINITY);
+        double ping=number(c,"ping",5,300),shrink=number(c,"shrink",0,5),min=number(c,"minRadius",1,diameter/2),headStart=c.has("preyHeadStart")?number(c,"preyHeadStart",0,7200):0;
+        config=new JSONObject().put("minutes",minutes).put("diameter",diameter).put("ping",ping).put("shrink",shrink).put("minRadius",min).put("preyHeadStart",headStart);
         add("host",creation);
     }
     private static double number(JSONObject obj,String key,double low,double high) throws Exception {
@@ -50,7 +50,8 @@ final class PhoneGame {
                 case "join": case "poll": break;
                 case "location": {
                     JSONObject l=body.getJSONObject("location");double lat=number(l,"lat",-90,90),lng=number(l,"lng",-180,180),accuracy=number(l,"accuracy",0,1000);
-                    if(ended==null&&(started==0||p.ping<0||now-p.ping>=config.getDouble("ping")*1000)){
+                    boolean hidden=started!=0&&p.role.equals("prey")&&now-started<config.getDouble("preyHeadStart")*1000;
+                    if(ended==null&&!hidden&&(started==0||p.ping<0||now-p.ping>=config.getDouble("ping")*1000)){
                         p.location=new JSONObject().put("lat",lat).put("lng",lng).put("accuracy",accuracy).put("at",now);p.ping=now;
                     }break;
                 }
@@ -63,7 +64,7 @@ final class PhoneGame {
                     if(!prey||!hunter)throw new IllegalArgumentException("Servono una preda e un cacciatore connessi");
                     if(p.location==null||now-p.location.getLong("at")>15000||p.location.getDouble("accuracy")>100)throw new IllegalArgumentException("Attendi un GPS recente e preciso (entro 100 m)");
                     center=new JSONObject().put("lat",p.location.getDouble("lat")).put("lng",p.location.getDouble("lng"));started=now;
-                    for(Player q:players.values())q.ping=now;break;
+                    for(Player q:players.values())q.ping=now+(q.role.equals("prey")&&config.getDouble("preyHeadStart")>0?(long)(config.getDouble("preyHeadStart")*1000)-(long)(config.getDouble("ping")*1000):0);break;
                 }
                 case "end":
                     if(!peer.equals("host"))throw new IllegalArgumentException("Solo l’organizzatore può terminare");

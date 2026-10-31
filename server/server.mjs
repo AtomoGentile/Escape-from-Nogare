@@ -62,14 +62,15 @@ export function createServer({ clock = Date.now } = {}) {
         if (b.action === 'create') {
           if(typeof b.joinProof!=='string'||! /^[a-f0-9]{64}$/.test(b.joinProof))fail(400,'Serve un invito privato valido');
           const c = b.config;
-          if (!c || !numeric(c.minutes, 2, 120) || !numeric(c.diameter, 100, Infinity)
-              || !numeric(c.ping, 5, 300) || !numeric(c.shrink, 0, 5)) fail(400, 'Impostazioni non valide');
+          if (!c || !numeric(c.minutes, 2, 180) || !numeric(c.diameter, 100, Infinity)
+              || !numeric(c.ping, 5, 300) || !numeric(c.shrink, 0, 5)
+              || (c.preyHeadStart !== undefined && !numeric(c.preyHeadStart, 0, 7200))) fail(400, 'Impostazioni non valide');
           const minRadius = c.minRadius === undefined ? 25 : c.minRadius;
           if (!numeric(minRadius, 1, c.diameter / 2)) fail(400, 'Il raggio minimo deve essere tra 1 m e metà del diametro iniziale');
           if (rooms.size >= 1000) fail(503, 'Server pieno');
           let code;
           do { code = String(randomInt(100000, 1000000)); } while (rooms.has(code));
-          room = { code, config: { minutes: c.minutes, diameter: c.diameter, ping: c.ping, shrink: c.shrink, minRadius },
+          room = { code, config: { minutes: c.minutes, diameter: c.diameter, ping: c.ping, shrink: c.shrink, minRadius, preyHeadStart: c.preyHeadStart || 0 },
             joinProof: b.joinProof, players: [], host: null, started: null, ended: null, center: null, updated: now };
           rooms.set(code, room);
         } else {
@@ -97,7 +98,8 @@ export function createServer({ clock = Date.now } = {}) {
           const l = b.location;
           if (!l || !numeric(l.lat, -90, 90) || !numeric(l.lng, -180, 180)
               || !numeric(l.accuracy, 0, 1000)) fail(400, 'Posizione non valida');
-          if (!room.ended && (!room.started || player.lastPing === null || now - player.lastPing >= room.config.ping * 1000)) {
+          const hiddenPrey = room.started && player.role === 'prey' && now - room.started < room.config.preyHeadStart * 1000;
+          if (!room.ended && !hiddenPrey && (!room.started || player.lastPing === null || now - player.lastPing >= room.config.ping * 1000)) {
             player.location = { lat: l.lat, lng: l.lng, accuracy: l.accuracy, at: now };
             player.lastPing = now;
           }
@@ -116,7 +118,7 @@ export function createServer({ clock = Date.now } = {}) {
           room.center = { lat: player.location.lat, lng: player.location.lng };
           room.started = now;
           // One common ping cadence from the start, avoiding exposure from lobby movement.
-          for (const p of room.players) p.lastPing = now;
+          for (const p of room.players) p.lastPing = now + (p.role === 'prey' && room.config.preyHeadStart > 0 ? room.config.preyHeadStart * 1000 - room.config.ping * 1000 : 0);
         } else if (b.action === 'end') {
           if (player.id !== room.host) fail(403, 'Solo il creatore può terminare la partita');
           if (!room.started) fail(409, 'Partita non ancora iniziata');
