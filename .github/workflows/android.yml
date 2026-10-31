@@ -1,6 +1,7 @@
 name: Android APK
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
   release:
@@ -8,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:
