@@ -1,6 +1,6 @@
 plugins { id 'com.android.application' }
 android { namespace 'it.atomogentile.nogar'; compileSdk 35
- defaultConfig { applicationId 'it.atomogentile.nogar'; minSdk 28; targetSdk 35; versionCode 11; versionName '0.9.2' }
+ defaultConfig { applicationId 'it.atomogentile.nogar'; minSdk 28; targetSdk 35; versionCode 12; versionName '1.0.0' }
  testOptions { unitTests.all { systemProperty 'nogar.repository', rootProject.projectDir.absolutePath; inputs.property 'firebaseEmulatorHost', System.getenv('FIREBASE_DATABASE_EMULATOR_HOST') ?: '' } }
  buildTypes { release { minifyEnabled true; shrinkResources true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' } }
 }
