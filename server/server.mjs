@@ -10,6 +10,15 @@ export const presets = {
 const sameProof=(a,b)=>typeof a==='string'&&typeof b==='string'&&/^[a-f0-9]{64}$/.test(a)&&a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 const secret = () => randomBytes(24).toString('hex');
 const numeric = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+function implausibleMove(previous, next, now) {
+  if (!previous) return false;
+  const seconds = Math.max(0, (now - previous.at) / 1000);
+  const allowance = 15 * seconds + Math.min(100, previous.accuracy) + Math.min(100, next.accuracy) + 20;
+  const rad = value => value * Math.PI / 180;
+  const dLat = rad(next.lat - previous.lat), dLng = rad(next.lng - previous.lng);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(previous.lat)) * Math.cos(rad(next.lat)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) > allowance;
+}
 const fail = (status, message, errorCode = 'INVALID_REQUEST') => {
   throw Object.assign(new Error(message), { status, errorCode });
 };
@@ -53,7 +62,7 @@ export function createServer({ clock = Date.now } = {}) {
       try { b = JSON.parse(raw); } catch { fail(400, 'JSON non valido'); }
       if (!b || typeof b !== 'object' || Array.isArray(b)) fail(400, 'Richiesta non valida');
       const now = clock();
-      let room, player;
+      let room, player, locationWarning = false;
       if (b.action === 'create' || b.action === 'join') {
         limit('entry:' + req.socket.remoteAddress, 60);
         if (typeof b.name !== 'string' || !b.name.trim() || b.name.trim().length > 24)
@@ -100,8 +109,11 @@ export function createServer({ clock = Date.now } = {}) {
               || !numeric(l.accuracy, 0, 1000)) fail(400, 'Posizione non valida');
           const hiddenPrey = room.started && player.role === 'prey' && now - room.started < room.config.preyHeadStart * 1000;
           if (!room.ended && !hiddenPrey && (!room.started || player.lastPing === null || now - player.lastPing >= room.config.ping * 1000)) {
-            player.location = { lat: l.lat, lng: l.lng, accuracy: l.accuracy, at: now };
-            player.lastPing = now;
+            if (implausibleMove(player.location, l, now)) { player.lastPing = now; locationWarning = true; }
+            else {
+              player.location = { lat: l.lat, lng: l.lng, accuracy: l.accuracy, at: now };
+              player.lastPing = now;
+            }
           }
         } else if (b.action === 'role') {
           if (room.started || room.ended) fail(409, 'Le squadre sono bloccate dopo l’avvio');
@@ -138,7 +150,7 @@ export function createServer({ clock = Date.now } = {}) {
         ? Math.max(0, room.config.ping - (now - (player.lastPing ?? room.started)) / 1000) : 0;
       res.end(JSON.stringify({ code: room.code, token: player.id, host: room.host === player.id,
         authority: 'pc', transport: 'pc', config: room.config, started: room.started, ended: room.ended, center: room.center, serverTime: now,
-        nextPingIn, remaining: room.ended ? 0 : Math.max(0, room.config.minutes * 60 - elapsed),
+        nextPingIn, locationWarning: locationWarning || undefined, remaining: room.ended ? 0 : Math.max(0, room.config.minutes * 60 - elapsed),
         radius: Math.max(room.config.minRadius, room.config.diameter / 2 - elapsed * room.config.shrink),
         players: room.players.map(p => ({ name: p.name, role: p.role, self: p === player,
           host: p.id === room.host, online: now - p.seen < 30000, location: p.location })) }));
