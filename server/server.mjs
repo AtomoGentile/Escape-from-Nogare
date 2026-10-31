@@ -64,7 +64,7 @@ export function createServer({ clock = Date.now } = {}) {
           const c = b.config;
           if (!c || !numeric(c.minutes, 2, 120) || !numeric(c.diameter, 100, Infinity)
               || !numeric(c.ping, 5, 300) || !numeric(c.shrink, 0, 5)
-              || (c.preyHeadStart !== undefined && !numeric(c.preyHeadStart, 0, 600))) fail(400, 'Impostazioni non valide');
+              || (c.preyHeadStart !== undefined && !numeric(c.preyHeadStart, 0, 7200))) fail(400, 'Impostazioni non valide');
           const minRadius = c.minRadius === undefined ? 25 : c.minRadius;
           if (!numeric(minRadius, 1, c.diameter / 2)) fail(400, 'Il raggio minimo deve essere tra 1 m e metà del diametro iniziale');
           if (rooms.size >= 1000) fail(503, 'Server pieno');
