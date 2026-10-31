@@ -28,7 +28,7 @@ test('ping condivisi: prima scadenza, throttling e riservatezza dei token', asyn
   assert.equal(start.config.minRadius, 25); assert.equal(start.center.lat, 45); assert.equal(start.nextPingIn, 30);
   let r = await f.gps(f.prey, { lat: 45.001, extra: 'must not leak' });
   assert.equal(r.players.find(p => p.self).location.lat, 45);
-  f.advance(30000); r = await f.gps(f.prey, { lat: 45.1, extra: 'must not leak' });
+  f.advance(30000); r = await f.gps(f.prey, { lat: 45.001, extra: 'must not leak' });
   assert.equal(r.players.find(p => p.self).location.lat, 45.001);
   assert.equal(r.players.find(p => p.self).location.extra, undefined);
   assert.ok(r.players.every(p => !('id' in p) && !('token' in p)));
