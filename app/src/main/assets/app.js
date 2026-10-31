@@ -83,7 +83,7 @@ function enter(action) {
   if (!val('name')) return notice('Scegli un nickname prima di entrare.');
   if (action === 'join' && !/^nogar:\/\/join#[A-Za-z0-9_-]+$/.test(val('code'))) return notice('Incolla l’invito completo ricevuto dall’organizzatore, non il solo codice a 6 cifre.');
   const config = {};
-  const limits = { minutes: [2, 120], diameter: [100, Infinity], ping: [5, 300], shrink: [0, 5], minRadius: [1, Infinity], preyHeadStart: [0, 600] };
+  const limits = { minutes: [2, 120], diameter: [100, Infinity], ping: [5, 300], shrink: [0, 5], minRadius: [1, Infinity], preyHeadStart: [0, 7200] };
   for (const key of Object.keys(limits)) {
     config[key] = Number(val(key));
     if (action === 'create' && (!val(key) || !Number.isFinite(config[key]) || config[key] < limits[key][0] || config[key] > limits[key][1])) {
