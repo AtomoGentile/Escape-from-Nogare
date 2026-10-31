@@ -15,7 +15,7 @@ public class PhoneGameTest {
         g.handle("host",location(45));g.handle("peer",location(45));
         JSONObject started=g.handle("host",action("start"));assertFalse(started.has("error"));assertEquals(30,started.getDouble("nextPingIn"),.001);
         JSONObject early=g.handle("peer",location(46));assertEquals(45,early.getJSONArray("players").getJSONObject(1).getJSONObject("location").getDouble("lat"),.001);
-        now.addAndGet(30000);JSONObject ping=g.handle("peer",location(46));assertEquals(46,ping.getJSONArray("players").getJSONObject(1).getJSONObject("location").getDouble("lat"),.001);
+        now.addAndGet(30000);JSONObject ping=g.handle("peer",location(45.001));assertEquals(45.001,ping.getJSONArray("players").getJSONObject(1).getJSONObject("location").getDouble("lat"),.001);
         now.addAndGet(1070000);JSONObject floor=g.handle("host",action("poll"));assertEquals(200,floor.getDouble("radius"),.001);assertEquals(100,floor.getDouble("remaining"),.001);
         now.addAndGet(100000);JSONObject ended=g.handle("peer",action("poll"));assertEquals("timeout",ended.getJSONObject("ended").getString("reason"));assertTrue(ended.getJSONArray("players").getJSONObject(0).isNull("location"));
     }

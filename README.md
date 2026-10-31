@@ -28,7 +28,7 @@ In modalità telefono, il telefono organizzatore non viene sostituito automatica
 | Classic | 20 min | 1200 m | 30 s | 0,4 m/s | 25 m |
 | Explorer | 30 min | 2000 m | 45 s | 0,5 m/s | 25 m |
 
-Tutti i parametri sono personalizzabili. Il diametro parte da 100 m e non ha un limite massimo imposto dall’app. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il motore sul PC o sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. Usare solo aree autorizzate e percorsi sicuri.
+Tutti i parametri sono personalizzabili. Il diametro parte da 100 m e non ha un limite massimo imposto dall’app. Il raggio minimo può variare da 1 m alla metà del diametro iniziale. Il motore sul PC o sul telefono e la mappa rispettano lo stesso limite. Il GPS non garantisce precisione assoluta: il cerchio è virtuale, ignora strade e ostacoli. L’app rifiuta le posizioni Android dichiarate simulate e le autorità ignorano salti incompatibili con una velocità di 15 m/s, tenendo conto dell’accuratezza GPS; un telefono modificato può aggirare questi controlli, quindi non sono una garanzia anti-cheat. Usare solo aree autorizzate e percorsi sicuri.
 
 ## Cosa passa dai servizi esterni
 
