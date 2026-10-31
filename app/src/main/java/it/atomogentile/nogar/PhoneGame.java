@@ -31,6 +31,16 @@ final class PhoneGame {
     private static String role(JSONObject b) throws Exception {
         String r=b.getString("role");if(!r.equals("prey")&&!r.equals("hunter"))throw new IllegalArgumentException("Squadra non valida");return r;
     }
+    private static boolean implausibleMove(JSONObject previous,double lat,double lng,double accuracy,long now) {
+        if(previous==null)return false;
+        double seconds=Math.max(0,(now-previous.optLong("at",now))/1000.0);
+        double allowance=15.0*seconds+Math.min(100,previous.optDouble("accuracy",100))+Math.min(100,accuracy)+20;
+        double lat1=Math.toRadians(previous.optDouble("lat")),lat2=Math.toRadians(lat);
+        double dLat=lat2-lat1,dLng=Math.toRadians(lng-previous.optDouble("lng"));
+        double a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+        double distance=6371000*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+        return distance>allowance;
+    }
     private void add(String peer,JSONObject b) throws Exception {
         if(started!=0||ended!=null)throw new IllegalArgumentException("Partita già iniziata");
         if(players.size()>=50)throw new IllegalArgumentException("Lobby piena");
@@ -39,6 +49,7 @@ final class PhoneGame {
         players.put(peer,new Player(peer,name,role(b),clock.getAsLong()));
     }
     synchronized JSONObject handle(String peer,JSONObject body) {
+        boolean locationWarning=false;
         try {
             long now=clock.getAsLong();String action=body.getString("action");
             if(started!=0&&ended==null&&now-started>=config.getDouble("minutes")*60000)end("timeout",started+(long)(config.getDouble("minutes")*60000));
@@ -52,7 +63,8 @@ final class PhoneGame {
                     JSONObject l=body.getJSONObject("location");double lat=number(l,"lat",-90,90),lng=number(l,"lng",-180,180),accuracy=number(l,"accuracy",0,1000);
                     boolean hidden=started!=0&&p.role.equals("prey")&&now-started<config.getDouble("preyHeadStart")*1000;
                     if(ended==null&&!hidden&&(started==0||p.ping<0||now-p.ping>=config.getDouble("ping")*1000)){
-                        p.location=new JSONObject().put("lat",lat).put("lng",lng).put("accuracy",accuracy).put("at",now);p.ping=now;
+                        if(implausibleMove(p.location,lat,lng,accuracy,now)){p.ping=now;locationWarning=true;}
+                        else{p.location=new JSONObject().put("lat",lat).put("lng",lng).put("accuracy",accuracy).put("at",now);p.ping=now;}
                     }break;
                 }
                 case "role":
@@ -76,7 +88,7 @@ final class PhoneGame {
                     return new JSONObject().put("left",true);
                 default:throw new IllegalArgumentException("Azione non valida");
             }
-            return snapshot(p,now);
+            JSONObject result=snapshot(p,now);if(locationWarning)result.put("locationWarning",true);return result;
         } catch(Exception e) {
             try{return new JSONObject().put("error",e instanceof IllegalArgumentException?e.getMessage():"Richiesta non valida").put("errorCode","INVALID_REQUEST");}catch(JSONException impossible){throw new IllegalStateException(impossible);}
         }
