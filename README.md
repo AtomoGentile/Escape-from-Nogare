@@ -1,4 +1,4 @@
-# NOGAR // HUNT · Android 9+ · v0.9.2
+# NOGAR // HUNT · Android 9+ · v1.0.0
 
 Nascondino geografico con lobby, prede/cacciatori, ping su mappa e zona che si restringe. **Dalla v0.9 puoi scegliere: server completo sul tuo PC oppure partita sul telefono organizzatore con Firebase/relay cifrato.** In modalità telefono il servizio esterno è solo una casella di collegamento e inoltro di messaggi cifrati: non esegue le regole e non riceve la chiave dell’invito.
 
