@@ -19,7 +19,7 @@ final class PhoneGame {
     PhoneGame(String code,JSONObject creation,LongSupplier clock) throws Exception {
         this.code=code;this.clock=clock;
         JSONObject c=creation.getJSONObject("config");
-        double minutes=number(c,"minutes",2,120),diameter=number(c,"diameter",100,Double.POSITIVE_INFINITY);
+        double minutes=number(c,"minutes",2,180),diameter=number(c,"diameter",100,Double.POSITIVE_INFINITY);
         double ping=number(c,"ping",5,300),shrink=number(c,"shrink",0,5),min=number(c,"minRadius",1,diameter/2),headStart=c.has("preyHeadStart")?number(c,"preyHeadStart",0,7200):0;
         config=new JSONObject().put("minutes",minutes).put("diameter",diameter).put("ping",ping).put("shrink",shrink).put("minRadius",min).put("preyHeadStart",headStart);
         add("host",creation);
