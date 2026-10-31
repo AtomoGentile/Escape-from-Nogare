@@ -134,7 +134,8 @@ function receive(result) {
   }
   auth = { code: result.code, token: result.token }; state = result; receivedAt = performance.now();
   if (!result.ended && (!result.started || result.remaining > 0)) Android.startTracking(JSON.stringify(auth));
-  $('message').classList.add('hidden');
+  if (result.locationWarning) notice('Spostamento anomalo: posizione ignorata. Attendi un fix GPS affidabile.');
+  else $('message').classList.add('hidden');
   show('game'); $('lobbyCode').textContent = result.code;
   const me = result.players.find(p => p.self);
   const hunters = result.players.filter(p => p.role === 'hunter').length;
