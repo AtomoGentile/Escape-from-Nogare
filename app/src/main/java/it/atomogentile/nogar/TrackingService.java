@@ -77,10 +77,10 @@ public class TrackingService extends Service implements LocationListener {
             else startForeground(7, notification());
             current = this;
             snapshot = null;
-            // Session limit is 120 min; bounded lock keeps native pings running with screen off.
+            // Supports a 180-minute match plus lobby time; bounded lock keeps GPS running with screen off.
             wakeLock = ((PowerManager) getSystemService(POWER_SERVICE))
                     .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nogar:match");
-            wakeLock.acquire(135 * 60 * 1000L);
+            wakeLock.acquire(205 * 60 * 1000L);
             gps.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
             // Satellite GPS only; no application-level network geolocation provider.
             worker.execute(() -> {
@@ -101,7 +101,7 @@ public class TrackingService extends Service implements LocationListener {
                 }
             });
             // Never keep GPS on indefinitely in an abandoned pre-game lobby.
-            main.postDelayed(() -> finishTracking(true), 130 * 60 * 1000L);
+            main.postDelayed(() -> finishTracking(true), 200 * 60 * 1000L);
         } catch (Exception e) {
             deliver("trackingStopped('Impossibile avviare GPS: apri l’app e controlla i permessi')");
             finishTracking(true);
