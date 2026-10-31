@@ -20,6 +20,7 @@ public class TrackingService extends Service implements LocationListener {
     private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile Location fix;
+    private boolean mockLocationWarned;
     private volatile boolean stopped;
     private volatile boolean completed;
     private boolean booting;
@@ -179,10 +180,16 @@ public class TrackingService extends Service implements LocationListener {
     }
 
     @Override public void onLocationChanged(Location location) {
-        if (!stopped && !completed && location.hasAccuracy() && location.getAccuracy() <= 1000) {
-            fix = location;
-            deliver("onGps(" + location.getLatitude() + "," + location.getLongitude() + "," + location.getAccuracy() + ")");
+        if (stopped || completed || !location.hasAccuracy() || location.getAccuracy() > 1000) return;
+        if (location.isFromMockProvider()) {
+            fix = null;
+            if (!mockLocationWarned) deliver("notice('Posizione simulata rilevata: disattiva la posizione fittizia per giocare')");
+            mockLocationWarned = true;
+            return;
         }
+        mockLocationWarned = false;
+        fix = location;
+        deliver("onGps(" + location.getLatitude() + "," + location.getLongitude() + "," + location.getAccuracy() + ")");
     }
     @Override public void onProviderEnabled(String provider) {}
     @Override public void onProviderDisabled(String provider) { deliver("notice('GPS disattivato: riattivalo per inviare nuovi ping')"); }
