@@ -160,8 +160,10 @@ public class MainActivity extends Activity {
     }
     private void acceptInvite(String text)throws Exception {
         if(TrackingService.current!=null){js("notice('Esci dalla partita prima di aprire un altro invito')");return;}
+        java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("nogar://join#[A-Za-z0-9_-]+").matcher(text);
+        if(matcher.find())text=matcher.group(); else text=text.trim();
         PeerCrypto.Invitation invite=new PeerCrypto.Invitation(text);
-        js("prefillInvite("+JSONObject.quote(text.trim())+","+JSONObject.quote(invite.relay)+")");
+        js("prefillInvite("+JSONObject.quote(text)+","+JSONObject.quote(invite.relay)+")");
     }
     private void handleInvite(Intent intent){
         if(intent.getData()!=null&&"nogar".equals(intent.getData().getScheme())){
